@@ -1,0 +1,72 @@
+@import 'github-markdown-css/github-markdown.css';
+@import 'katex/dist/katex.min.css';
+
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: system-ui, -apple-system, "Noto Sans TC", sans-serif;
+  margin: 0; background: #f6f8fa; color: #1f2328;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* --- 頂欄 --- */
+#topbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; background: #fff; border-bottom: 1px solid #d0d7de;
+}
+#topbar .logo { font-weight: 700; }
+#topbar .hint { color: #57606a; font-size: 0.85em; }
+#topbar .spacer { flex: 1; }
+#topbar .on { background: #ddf4ff; border-color: #0969da; }
+button { padding: 5px 10px; border: 1px solid #d0d7de; border-radius: 6px; background: #f6f8fa; cursor: pointer; font-size: 0.9em; }
+button.primary { background: #1f883d; color: #fff; border-color: #1f883d; }
+button:disabled { opacity: 0.5; cursor: default; }
+
+/* --- 主版面 --- */
+#layout { flex: 1; display: flex; min-height: 0; }
+
+/* --- 側欄檔案樹 --- */
+#sidebar { width: 260px; min-width: 200px; background: #fff; border-right: 1px solid #d0d7de; display: flex; flex-direction: column; }
+#explorer-head { padding: 8px 10px; font-weight: 600; font-size: 0.85em; border-bottom: 1px solid #d0d7de; display: flex; gap: 6px; align-items: center; }
+#explorer-head #folder-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag { font-size: 0.75em; font-weight: 400; color: #57606a; border: 1px solid #d0d7de; border-radius: 4px; padding: 0 4px; }
+#tree { flex: 1; overflow: auto; padding: 4px 0; font-size: 0.9em; }
+#tree-hint { padding: 8px 10px; font-size: 0.8em; color: #57606a; border-top: 1px solid #d0d7de; }
+.tnode { user-select: none; }
+.trow { display: flex; align-items: center; gap: 4px; padding: 2px 6px; cursor: pointer; white-space: nowrap; }
+.trow:hover { background: #f6f8fa; }
+.trow.active { background: #ddf4ff; }
+.trow .caret { width: 14px; color: #57606a; font-size: 0.8em; }
+.trow .icon { width: 16px; text-align: center; }
+.trow .nm { overflow: hidden; text-overflow: ellipsis; }
+.tkids { margin-left: 14px; border-left: 1px solid #e8ecf0; padding-left: 2px; }
+
+/* --- 主區：分頁＋工作區 --- */
+#main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#tabs { display: flex; background: #eef1f4; border-bottom: 1px solid #d0d7de; overflow-x: auto; }
+.tab { display: flex; align-items: center; gap: 6px; padding: 6px 8px; font-size: 0.85em; cursor: pointer; border-right: 1px solid #d0d7de; white-space: nowrap; }
+.tab.active { background: #fff; }
+.tab .dirty { color: #bf8700; font-weight: 700; }
+.tab .x { color: #57606a; border-radius: 4px; padding: 0 3px; }
+.tab .x:hover { background: #d0d7de; }
+#workarea { flex: 1; display: flex; min-height: 0; }
+#workarea.split #editor, #workarea.split #preview { width: 50%; }
+#workarea.edit #preview, #workarea.preview #editor { display: none; }
+#workarea.edit #editor, #workarea.preview #preview { width: 100%; }
+#editor { overflow: auto; background: #fff; border-right: 1px solid #d0d7de; }
+#editor .cm-editor { height: 100%; }
+#preview { overflow: auto; background: #fff; padding: 16px 24px; }
+
+/* --- markdown 樣式補強 --- */
+.markdown-alert { padding: 0.5rem 1rem; margin-bottom: 1rem; border-left: 0.25em solid #888; border-radius: 6px; background: #f6f8fa; }
+.markdown-alert-title { font-weight: 600; margin: 0 0 0.25rem; }
+.markdown-alert-note { border-color: #0969da; }
+.markdown-alert-tip { border-color: #1a7f37; }
+.markdown-alert-important { border-color: #8250df; }
+.markdown-alert-warning { border-color: #9a6700; }
+.markdown-alert-caution { border-color: #d1242f; }
+pre.mermaid { background: #f6f8fa; padding: 16px; border-radius: 6px; }
+
+#statusbar { padding: 4px 12px; font-size: 0.8em; color: #57606a; background: #fff; border-top: 1px solid #d0d7de; }
+.hint { color: #57606a; }

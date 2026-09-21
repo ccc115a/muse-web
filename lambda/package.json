@@ -1,0 +1,16 @@
+{
+  "name": "lambda-church",
+  "version": "1.0.0",
+  "description": "純前端 lambda calculus 直譯器 + Church 編碼展示",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test test/parser.test.js test/reducer.test.js test/church.test.js"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}

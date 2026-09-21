@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>λ-Calculus 直譯器 · Church 編碼完整展示</title>
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <header>
+    <h1>λ-Calculus 直譯器 <span class="sub">· Church 1930s 未型別系統完整展示</span></h1>
+    <p class="intro">
+      純前端直譯器：解析 → <b>normal-order β-reduction</b> 逐步展示（含 capture-avoiding 的
+      <b>α-轉換</b>）。Alonzo Church 於 1932–1936 年提出 λ-calculus，並以其證明：
+      布林、數字、算術、資料結構與遞迴都可以只用函數表達（<b>Church 編碼</b>），
+      奠定 Church–Turing 論題與 Church–Rosser 定理的基礎。
+    </p>
+  </header>
+
+  <main>
+    <section class="panel" id="input-panel">
+      <h2>1. 輸入程式</h2>
+      <p class="hint">
+        語法：<code>λx. x</code>、<code>\x. x</code>、<code>lambda x. x</code> 皆可；
+        多參數可寫 <code>λx y. x</code>；十進位數字（如 <code>2</code>）自動視為 Church 數字；
+        <code>#</code> 開頭為註解；可用 <code>NAME = expr</code> 自訂定義（可引用下方 Library）。
+      </p>
+      <textarea id="src" rows="6" spellcheck="false">(λx. x) y</textarea>
+      <div class="row">
+        <label>範例
+          <select id="example"></select>
+        </label>
+      </div>
+      <div class="row">
+        <button id="load">載入並化簡 ⏎</button>
+        <button id="step" title="執行一步 β-reduction">⇥ 單步</button>
+        <button id="auto">▶ 自動播放</button>
+        <button id="reset">↺ 重置</button>
+      </div>
+      <div class="row">
+        <label>速度 <input id="speed" type="range" min="1" max="10" value="4" /></label>
+        <label>步數上限 <input id="maxsteps" type="number" min="1" max="10000" value="500" /></label>
+      </div>
+      <div id="status" class="status">尚未化簡</div>
+      <div id="error" class="error" hidden></div>
+
+      <h2>3. Church Library 速查</h2>
+      <p class="hint">點名稱把定義插入輸入框；每個定義都是純 λ 項。</p>
+      <div id="lib"></div>
+
+      <details class="history">
+        <summary>Church 1930s 背景小抄</summary>
+        <ul>
+          <li><b>1932/1936</b>：Church 發表 λ-calculus；1936 年與 Turing 各自證明判定問題不可解。</li>
+          <li><b>Church 編碼</b>：TRUE/FALSE 是二選一函數；數字 n 是「做 n 次 f」的高階函數。</li>
+          <li><b>PRED 之難</b>：後繼易、前驅難，Church 用 Pair 迭代才解出 <code>PRED</code>。</li>
+          <li><b>Y 組合子</b>：匿名遞迴 <code>Y f = f (Y f)</code>，如 <code>FACT = Y (…)</code>。</li>
+          <li><b>Ω = (λx.x x)(λx.x x)</b>：無 normal form，展示為何需要步數上限。</li>
+        </ul>
+      </details>
+    </section>
+
+    <section class="panel" id="trace-panel">
+      <h2>2. β-reduction 逐步 trace <span id="counter" class="counter"></span></h2>
+      <p class="hint">紅色底線即本次被化簡的 <b>redex</b>（最左最外）。α-轉換會在步驟說明中標出。</p>
+      <div id="result" class="result" hidden></div>
+      <ol id="trace"></ol>
+    </section>
+  </main>
+
+  <footer>
+    <span>Normal-order（最左最外）化簡 · 純前端，無後端 · <code>npm run dev / build</code></span>
+  </footer>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

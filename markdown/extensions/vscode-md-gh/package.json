@@ -1,0 +1,29 @@
+{
+  "name": "vscode-md-gh",
+  "displayName": "MD GitHub-style Preview",
+  "description": "側邊 GitHub 級 Markdown 預覽（mermaid/tex）+ 匯出獨立 HTML，不碰 git",
+  "version": "0.1.0",
+  "publisher": "md-gh",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onLanguage:markdown"],
+  "main": "./dist/extension.cjs",
+  "contributes": {
+    "commands": [
+      { "command": "md-gh.openPreview", "title": "MD: 開啟側邊預覽（GitHub 顯示）", "category": "MD" },
+      { "command": "md-gh.exportHtml", "title": "MD: 匯出獨立 HTML", "category": "MD" }
+    ],
+    "menus": {
+      "editor/title": [
+        { "command": "md-gh.openPreview", "group": "navigation" }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/extension.mjs --bundle --platform=node --format=cjs --external:vscode --alias:@md-gh/core=../../packages/core/src/index.mjs --outfile=dist/extension.cjs",
+    "package": "npm run build && npx --yes @vscode/vsce package --no-dependencies --out md-gh.vsix"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.0"
+  }
+}

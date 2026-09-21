@@ -1,0 +1,17 @@
+{
+  "name": "md-gh-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/core",
+    "apps/web",
+    "extensions/vscode-md-gh"
+  ],
+  "scripts": {
+    "test": "npm run test --workspace=@md-gh/core",
+    "dev:web": "npm run dev --workspace=@md-gh/web",
+    "build:web": "npm run build --workspace=@md-gh/web",
+    "build:webview": "npm run build:webview --workspace=@md-gh/web"
+  }
+}

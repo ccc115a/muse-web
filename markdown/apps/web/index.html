@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MD Editor · 類 VSCode Markdown 工作區</title>
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <header id="topbar">
+    <span class="logo">MD Editor</span>
+    <span class="hint">顯示與 GitHub 一致 · 純靜態 · git 操作請在 VSCode 自己做</span>
+    <div class="spacer"></div>
+    <button id="open-folder">開啟資料夾</button>
+    <button id="new-file">＋檔案</button>
+    <button id="new-folder">＋資料夾</button>
+    <button id="save-file" class="primary">儲存 (Ctrl+S)</button>
+    <span id="md-views" hidden>
+      <button data-view="edit">編輯</button>
+      <button data-view="split" class="on">並排</button>
+      <button data-view="preview">預覽</button>
+    </span>
+    <button id="download-html">匯出 .html</button>
+  </header>
+
+  <div id="layout">
+    <aside id="sidebar">
+      <div id="explorer-head">
+        <span id="folder-name">未開啟資料夾</span>
+        <span id="backend-tag" class="tag"></span>
+      </div>
+      <div id="tree"></div>
+      <div id="tree-hint" class="hint">按「開啟資料夾」載入本機目錄（Chromium 可直接寫回磁碟；Firefox 會改用唯讀＋下載存檔）。</div>
+    </aside>
+    <main id="main">
+      <div id="tabs"></div>
+      <div id="workarea" class="split">
+        <div id="editor"></div>
+        <article id="preview" class="markdown-body"></article>
+      </div>
+    </main>
+  </div>
+
+  <footer id="statusbar"><span id="status">就緒</span></footer>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
