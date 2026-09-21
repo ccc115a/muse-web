@@ -1,6 +1,11 @@
 import { createEditor } from './editor.js';
 import { renderPreview } from './preview.js';
 import { exportMarkdownToHtml } from '@md-gh/core';
+import { buildSiteFileMap, writeSiteToDisk, downloadSiteZip } from './site-export.js';
+import { inputModal, confirmModal, choiceModal, infoModal } from './modal.js';
+import { readGitInfo } from './git.js';
+import { repoUrl, actionsUrl, pagesSettingsUrl, pagesSiteUrl, getRepoInfo, getActionRuns } from './github.js';
+import { readProjectConfig, ensureProjectConfig } from './project.js';
 import {
   NATIVE,
   isTextName,
@@ -113,9 +118,9 @@ function activateTab(i) {
   renderTree();
 }
 
-function closeTab(i) {
+async function closeTab(i) {
   const t = tabs[i];
-  if (t.dirty && !confirm(`「${t.title}」尚未儲存，確定關閉？`)) return;
+  if (t.dirty && !(await confirmModal(`「${t.title}」尚未儲存，確定關閉？`, '確定關閉'))) return;
   tabs.splice(i, 1);
   if (!tabs.length) {
     activeIdx = -1;
@@ -189,13 +194,14 @@ function renderTree() {
 }
 
 async function nodeMenu(node) {
-  const action = prompt(`對「${node.name}」執行動作：\nrename=重新命名\ndelete=刪除\n（取消則不動作）`, '');
-  if (action === 'rename') await renameNode(node);
-  else if (action === 'delete') await deleteNode(node);
+  const action = await choiceModal(`「${node.name}」`, ['重新命名', '刪除']);
+  if (action === '重新命名') await renameNode(node);
+  else if (action === '刪除') await deleteNode(node);
 }
 
 async function renameNode(node) {
-  const name = prompt('新檔名：', node.name);
+  const raw = await inputModal('重新命名', { value: node.name, okText: '改名' });
+  const name = (raw ?? '').trim();
   if (!name || name === node.name) return;
   try {
     if (node.virtual || !node.handle) {
@@ -244,7 +250,7 @@ async function parentHandle(node) {
 }
 
 async function deleteNode(node) {
-  if (!confirm(`確定刪除「${node.path}」？`)) return;
+  if (!(await confirmModal(`確定刪除「${node.path}」？`))) return;
   try {
     if (node.virtual || !node.handle) {
       removeVirtual(node);
@@ -317,8 +323,10 @@ async function targetDir() {
 $('new-file').onclick = async () => {
   const dir = await targetDir();
   if (!dir) return;
-  const name = prompt('檔名（含副檔名）：', 'untitled.md');
+  const raw = await inputModal('新增檔案', { label: `位置：${dir.path}`, value: 'untitled.md' });
+  const name = (raw ?? '').trim();
   if (!name) return;
+  if (name.includes('/') || name === '.' || name === '..') return status('檔名不可含斜線或是 . / ..');
   try {
     let node;
     if (NATIVE && dir.handle) {
@@ -344,8 +352,10 @@ $('new-file').onclick = async () => {
 $('new-folder').onclick = async () => {
   const dir = await targetDir();
   if (!dir) return;
-  const name = prompt('資料夾名稱：', 'new-folder');
+  const raw = await inputModal('新增資料夾', { label: `位置：${dir.path}`, value: 'new-folder' });
+  const name = (raw ?? '').trim();
   if (!name) return;
+  if (name.includes('/') || name === '.' || name === '..') return status('資料夾名稱不可含斜線或是 . / ..');
   try {
     if (NATIVE && dir.handle) {
       const h = await dir.handle.getDirectoryHandle(name, { create: true });
@@ -397,6 +407,129 @@ document.querySelectorAll('#md-views [data-view]').forEach((b) =>
 if (mdView.mode === 'split') {
   document.querySelector('#md-views [data-view="split"]')?.classList.add('on');
 }
+
+$('publish-site').onclick = async () => {
+  if (!root) return status('請先開啟資料夾（本站假設它就是 repo 根目錄）。');
+  // 設定來自 .mdeditor.json（按「專案設定」直接編輯），全程無 prompt
+  const { siteDir, branch } = await readProjectConfig(root, 'main');
+  const outDirInput = siteDir;
+  try {
+    status('產生靜態網站中…');
+    // 先正規化輸出目錄（擋尾斜線/空段，否則 getDirectoryHandle 報 Name is not allowed）
+    const { sanitizeOutDir } = await import('@md-gh/core');
+    let outDir;
+    try {
+      outDir = sanitizeOutDir(outDirInput);
+    } catch (e) {
+      return status(`輸出目錄無效：${e.message}`);
+    }
+    const { fileMap, pages } = await buildSiteFileMap(root, outDir, (m) => status(m));
+    if (!pages.length) return status('資料夾內沒有 .md 檔。');
+    if (NATIVE && root.handle) {
+      const { written, failed } = await writeSiteToDisk(root, outDir, fileMap, branch || 'main', (m) =>
+        status(m)
+      );
+      const failMsg = failed.length
+        ? ` 失敗 ${failed.length} 個：` + failed.slice(0, 3).map((f) => `${f.rel}（${f.error}）`).join('；')
+        : '';
+      status(
+        `完成：${pages.length} 頁，寫入 ${written} 個檔 → ${outDir}/ ＋ .github/workflows/gh-pages.yml。${failMsg}` +
+          `用 VSCode push 後，到 repo Settings → Pages → Source 選「GitHub Actions」即上線。`
+      );
+    } else {
+      await downloadSiteZip(root.name, outDir, fileMap, branch, (m) => status(m));
+      status(
+        `已下載 ${root.name}-${outDir}.zip（含站點＋Action）。解壓進 repo 根目錄再 push，` +
+          `到 Settings → Pages → Source 選「GitHub Actions」即上線。`
+      );
+    }
+  } catch (e) {
+    status(`發佈失敗：${e.message}`);
+  }
+};
+
+function esc(s) {
+  return (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+$('project-settings').onclick = async () => {
+  if (!root) return status('請先開啟資料夾。');
+  let branch = 'main';
+  try {
+    const g = await readGitInfo(root);
+    if (g.branch) branch = g.branch;
+  } catch {
+    // 讀不到就用 main
+  }
+  const { node } = await ensureProjectConfig(root, branch);
+  if (node) {
+    renderTree();
+    await openNode(node);
+    status('已開啟 .mdeditor.json，直接編輯存檔即生效（siteDir／branch）。');
+  }
+};
+
+$('project-info').onclick = async () => {
+  if (!root) return status('請先開啟資料夾。');
+  status('讀取專案資訊…');
+  const g = await readGitInfo(root).catch(() => ({ supported: false }));
+  let html = '';
+  if (!g.supported) {
+    html = '<p>此瀏覽器不支援讀取本機 .git（相容模式），請用 Chrome/Edge。</p>';
+  } else if (!g.isGit) {
+    html = '<p>此資料夾不是 git 專案（找不到 .git）。</p>';
+  } else {
+    const remotes = Object.entries(g.remotes ?? {})
+      .map(([n, u]) => `<tr><td>${esc(n)}</td><td><code>${esc(u)}</code></td></tr>`)
+      .join('');
+    const branches = (g.branches ?? [])
+      .map((b) => `<tr><td>${b.current ? '<b>' + esc(b.name) + '</b>' : esc(b.name)}</td><td><code>${b.sha.slice(0, 7)}</code></td></tr>`)
+      .join('');
+    const lc = g.lastCommit;
+    html =
+      `<h4>Git（本機，只讀）</h4>` +
+      `<table class="info-table">` +
+      `<tr><td>分支</td><td>${g.detached ? 'detached HEAD' : '<b>' + esc(g.branch ?? '') + '</b>'}</td></tr>` +
+      (lc ? `<tr><td>最後 commit</td><td><code>${lc.short}</code> ${esc(lc.subject ?? '')}<br/>${esc(lc.authorName ?? '')} ${esc(lc.authorDate ?? '')}</td></tr>` : '') +
+      `</table>` +
+      (branches ? `<h4>分支一覽</h4><table class="info-table">${branches}</table>` : '') +
+      (remotes ? `<h4>Remotes</h4><table class="info-table">${remotes}</table>` : '<p>沒有 remote。</p>');
+  }
+  if (g.github) {
+    const { owner, repo } = g.github;
+    html += `<h4>GitHub：<a href="${repoUrl(owner, repo)}" target="_blank">${esc(owner)}/${esc(repo)}</a></h4>`;
+    try {
+      const [info, runs] = await Promise.all([getRepoInfo(owner, repo), getActionRuns(owner, repo)]);
+      html +=
+        `<table class="info-table">` +
+        (info.description ? `<tr><td>簡介</td><td>${esc(info.description)}</td></tr>` : '') +
+        `<tr><td>Stars</td><td>★ ${info.stars}</td></tr>` +
+        `<tr><td>預設分支</td><td>${esc(info.defaultBranch)}</td></tr>` +
+        `<tr><td>更新</td><td>${esc(info.updatedAt)}</td></tr>` +
+        `</table>` +
+        `<h4>Actions（最近 ${runs.length} 次） <a href="${actionsUrl(owner, repo)}" target="_blank">全部→</a></h4>` +
+        (runs.length
+          ? `<table class="info-table">` +
+            runs
+              .map(
+                (r) =>
+                  `<tr><td>${r.status === 'completed' ? (r.conclusion === 'success' ? '✅' : '❌') : '⏳'}</td>` +
+                  `<td><a href="${r.url}" target="_blank">${esc(r.name)}</a><br/>${esc(r.branch)} <code>${r.sha}</code> ${esc(r.time)}</td></tr>`
+              )
+              .join('') +
+            `</table>`
+          : '<p>尚無執行紀錄。</p>') +
+        `<h4>Pages</h4><p>站點：<a href="${pagesSiteUrl(owner, repo)}" target="_blank">${pagesSiteUrl(owner, repo)}</a><br/>` +
+        `設定：<a href="${pagesSettingsUrl(owner, repo)}" target="_blank">Pages 設定</a>（Source 選 GitHub Actions）</p>`;
+    } catch (e) {
+      html += `<p>GitHub API 讀不到：${esc(e.message)}。<a href="${actionsUrl(owner, repo)}" target="_blank">Actions</a> · <a href="${pagesSettingsUrl(owner, repo)}" target="_blank">Pages 設定</a></p>`;
+    }
+  } else if (g.isGit) {
+    html += '<p>remote 不是 github.com，不顯示 GitHub 區。</p>';
+  }
+  status('就緒');
+  await infoModal(`專案資訊：${root.name}`, html);
+};
 
 $('download-html').onclick = () => {
   if (activeIdx < 0 || !isMd(tabs[activeIdx].title)) return status('請先開啟一個 .md 分頁。');

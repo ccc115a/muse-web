@@ -6,8 +6,8 @@
 ## 結構
 
 ```
-packages/core/   # renderer/sanitize/獨立 HTML 匯出 + 測試 + 全語法範例
-apps/web/        # Vite 純靜態站：CodeMirror 編輯 + 即時預覽 + 開檔/下載
+packages/core/   # renderer/sanitize/獨立 HTML 匯出/站點產生/git 解析 + 測試 + 全語法範例
+apps/web/        # Vite 純靜態站：類 VSCode 工作區＋專案資訊＋發佈靜態網站
 extensions/vscode-md-gh/  # 側邊預覽 + 匯出獨立 HTML
 ```
 
@@ -31,7 +31,15 @@ npm run build:web    # dist/ 單一 index.html，雙擊也能開
 1. 按「開啟資料夾」載入本機目錄：左側檔案樹＋分頁編輯，`Ctrl+S` 儲存。
    Chromium（Chrome/Edge）可直接寫回磁碟；Firefox/Safari 走相容模式（唯讀瀏覽＋下載存檔）。
 2. `.md` 分頁右側即時預覽（編輯／並排／預覽可切）；右鍵檔名可重新命名／刪除；可新增檔案／資料夾。
-3. terminal 尚未實作。git/push 照樣在 VSCode 自己做。
+3. 按「發佈靜態網站」：把整個資料夾轉成 gh-pages 站點（`.md`→同 renderer 的 HTML＋左側導覽，圖片等原樣複製），
+   Chromium 寫入 `<repo>/site/` ＋ `<repo>/.github/workflows/gh-pages.yml`（官方 Pages Action，監聽 `main`）；
+   相容模式改下載 zip。之後在 VSCode push，repo Settings → Pages → Source 選「GitHub Actions」即上線。
+   （跳過 `.git`／`node_modules`／隱藏檔／輸出目錄本身；根目錄 `README.md` 自動當首頁。）
+4. 若是 git 專案，按「專案資訊」：本機分支／HEAD／最後 commit／remotes（唯讀），
+   GitHub 專案再加 repo 簡介＋stars、最近 5 次 Actions 結果、Pages 站點與設定連結（公開 API 免登入）。
+5. 「專案設定」開啟 `.mdeditor.json`（`siteDir`／`branch`，不存在自動建，分支預填目前 git 分支），
+   發佈流程讀它，不再有 `prompt()` 跳窗；新增／刪除／重新命名改用站內對話框。
+6. terminal 尚未實作。git/push 照樣在 VSCode 自己做。
 
 ## VSCode 插件用法
 
