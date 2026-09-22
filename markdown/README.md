@@ -58,5 +58,9 @@ npm run package --workspace=vscode-md-gh      # 產 md-gh.vsix
 ## 測試
 
 ```bash
-npm test   # core：14 tests（GFM 一致性 + sanitize + export）
+./test.sh  # core 單測（31）＋ web build ＋ e2e（puppeteer 驅系統 Chrome，8 項）＋產物確認
 ```
+
+e2e 需系統 Chrome（預設 `/Applications/Google Chrome.app`，可用 `CHROME_PATH` 蓋掉）。
+檔案選擇器要真人手勢，自動化測不到開資料夾流程，改列手動清單：
+開資料夾→開檔→改→Ctrl+S 寫回磁碟→發佈→檢視 GitHub 網站。
