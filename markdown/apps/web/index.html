@@ -11,20 +11,41 @@
     <span class="logo">MD Editor</span>
     <span class="hint">顯示與 GitHub 一致 · 純靜態 · git 操作請在 VSCode 自己做</span>
     <div class="spacer"></div>
-    <button id="open-folder">開啟資料夾</button>
-    <button id="new-file">＋檔案</button>
-    <button id="new-folder">＋資料夾</button>
-    <button id="save-file" class="primary">儲存 (Ctrl+S)</button>
-    <button id="project-info">專案資訊</button>
-    <button id="project-settings">專案設定</button>
-    <button id="publish-site">發佈靜態網站</button>
-    <button id="view-gh">檢視 GitHub 網站</button>
-    <span id="md-views" hidden>
-      <button data-view="edit">編輯</button>
-      <button data-view="split" class="on">並排</button>
-      <button data-view="preview">預覽</button>
-    </span>
-    <button id="download-html">匯出 .html</button>
+    <nav id="menubar">
+      <div class="menu" data-menu="file">
+        <button class="menu-title">檔案</button>
+        <div class="menu-drop" hidden>
+          <button id="open-folder">開啟資料夾</button>
+          <button id="new-file">新增檔案</button>
+          <button id="new-folder">新增資料夾</button>
+          <div class="sep"></div>
+          <button id="save-file">儲存 <span class="kbd">Ctrl+S</span></button>
+          <button id="download-html">匯出 .html</button>
+        </div>
+      </div>
+      <div class="menu" data-menu="view" id="menu-view">
+        <button class="menu-title">檢視</button>
+        <div class="menu-drop" hidden>
+          <button data-view="edit">編輯</button>
+          <button data-view="split" class="on">並排</button>
+          <button data-view="preview">預覽</button>
+        </div>
+      </div>
+      <div class="menu" data-menu="project">
+        <button class="menu-title">專案</button>
+        <div class="menu-drop" hidden>
+          <button id="project-info">專案資訊</button>
+          <button id="project-settings">專案設定</button>
+        </div>
+      </div>
+      <div class="menu" data-menu="publish">
+        <button class="menu-title">發佈</button>
+        <div class="menu-drop" hidden>
+          <button id="publish-site">發佈靜態網站</button>
+          <button id="view-gh">檢視 GitHub 網站</button>
+        </div>
+      </div>
+    </nav>
   </header>
 
   <div id="layout">

@@ -18,7 +18,28 @@ body {
 #topbar .logo { font-weight: 700; }
 #topbar .hint { color: #57606a; font-size: 0.85em; }
 #topbar .spacer { flex: 1; }
-#topbar .on { background: #ddf4ff; border-color: #0969da; }
+
+/* --- 選單列（VSCode 式） --- */
+#menubar { display: flex; gap: 2px; }
+#menubar .menu { position: relative; }
+#menubar .menu-title { border: 0; background: transparent; padding: 5px 10px; font-size: 0.9em; }
+#menubar .menu-title:hover, #menubar .menu-title.open { background: #e8ecf0; }
+#menubar .menu-drop {
+  position: absolute; right: 0; top: 100%; z-index: 150; min-width: 200px;
+  background: #fff; border: 1px solid #d0d7de; border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.15); padding: 4px;
+}
+#menubar .menu-drop[hidden] { display: none; }
+#menubar .menu-drop > button {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  width: 100%; border: 0; background: transparent; text-align: left;
+  padding: 6px 10px; font-size: 0.88em; border-radius: 4px;
+}
+#menubar .menu-drop > button:hover:not(:disabled) { background: #ddf4ff; }
+#menubar .menu-drop > button:disabled { color: #8c959f; background: transparent; cursor: default; }
+#menubar .menu-drop > button.on { font-weight: 700; }
+#menubar .kbd { color: #57606a; font-size: 0.85em; }
+#menubar .sep { border-top: 1px solid #d0d7de; margin: 4px 6px; }
 button { padding: 5px 10px; border: 1px solid #d0d7de; border-radius: 6px; background: #f6f8fa; cursor: pointer; font-size: 0.9em; }
 button.primary { background: #1f883d; color: #fff; border-color: #1f883d; }
 button:disabled { opacity: 0.5; cursor: default; }

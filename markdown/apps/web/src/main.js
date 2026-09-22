@@ -11,6 +11,7 @@ import { inputModal, confirmModal, choiceModal, infoModal, formModal } from './m
 import { readGitInfo } from './git.js';
 import { repoUrl, actionsUrl, pagesSettingsUrl, pagesSiteUrl, getRepoInfo, getActionRuns } from './github.js';
 import { readProjectConfig, ensureProjectConfig, writeProjectConfig } from './project.js';
+import { initMenu } from './menu.js';
 import {
   NATIVE,
   isTextName,
@@ -61,7 +62,7 @@ function syncEditorToTab() {
   const t = tabs[activeIdx];
   editor.value = t.content;
   switching = false;
-  $('md-views').hidden = !isMd(t.title);
+  syncViewMenu(isMd(t.title));
   workarea.className = isMd(t.title) ? mdView.mode : 'edit';
   if (isMd(t.title)) renderPreview(previewEl, t.content);
 }
@@ -133,7 +134,7 @@ async function closeTab(i) {
     editor.value = '';
     switching = false;
     previewEl.innerHTML = '';
-    $('md-views').hidden = true;
+    syncViewMenu(false);
   } else {
     activeIdx = Math.min(i, tabs.length - 1);
     syncEditorToTab();
@@ -402,16 +403,19 @@ window.addEventListener('beforeunload', (e) => {
   if (tabs.some((t) => t.dirty)) e.preventDefault();
 });
 
-document.querySelectorAll('#md-views [data-view]').forEach((b) =>
+function syncViewMenu(isMd) {
+  document.querySelectorAll('#menu-view [data-view]').forEach((b) => {
+    b.disabled = !isMd;
+  });
+}
+
+document.querySelectorAll('#menu-view [data-view]').forEach((b) =>
   b.addEventListener('click', () => {
     mdView.mode = b.getAttribute('data-view');
-    document.querySelectorAll('#md-views [data-view]').forEach((x) => x.classList.toggle('on', x === b));
+    document.querySelectorAll('#menu-view [data-view]').forEach((x) => x.classList.toggle('on', x === b));
     if (activeIdx >= 0 && isMd(tabs[activeIdx].title)) workarea.className = mdView.mode;
   })
 );
-if (mdView.mode === 'split') {
-  document.querySelector('#md-views [data-view="split"]')?.classList.add('on');
-}
 
 async function findDirNode(base, rel) {
   if (!rel) return base;
@@ -600,6 +604,7 @@ $('download-html').onclick = () => {
 
 // ---------- 啟動：未命名 DEMO 分頁 ----------
 
+initMenu();
 tabs.push({ node: null, title: 'untitled.md', content: DEMO, saved: DEMO, dirty: false });
 activeIdx = 0;
 $('backend-tag').textContent = NATIVE ? '可寫回磁碟' : '相容模式';
