@@ -121,6 +121,70 @@ export function choiceModal(title, options) {
   });
 }
 
+/** 表單對話框：fields [{ key, label, type: 'text'|'select'|'checkbox', value, options?, checked? }]
+ *  → Promise<values|null> */
+export function formModal(title, fields, okText = '確定') {
+  return new Promise((resolve) => {
+    const ov = overlay();
+    const box = shell(ov, title);
+    const widgets = {};
+    for (const f of fields) {
+      if (f.label) {
+        const lb = document.createElement('div');
+        lb.className = 'modal-label';
+        lb.textContent = f.label;
+        box.appendChild(lb);
+      }
+      let w;
+      if (f.type === 'select') {
+        w = document.createElement('select');
+        for (const o of f.options ?? []) {
+          const op = document.createElement('option');
+          op.value = o.value;
+          op.textContent = o.label;
+          w.appendChild(op);
+        }
+        w.value = f.value ?? '';
+      } else if (f.type === 'checkbox') {
+        const wrap = document.createElement('label');
+        wrap.className = 'modal-check';
+        w = document.createElement('input');
+        w.type = 'checkbox';
+        w.checked = !!f.checked;
+        wrap.append(w, document.createTextNode(' ' + (f.text ?? '')));
+        box.appendChild(wrap);
+        widgets[f.key] = w;
+        continue;
+      } else {
+        w = document.createElement('input');
+        w.type = 'text';
+        w.value = f.value ?? '';
+        w.placeholder = f.placeholder ?? '';
+      }
+      box.appendChild(w);
+      widgets[f.key] = w;
+    }
+    const btns = buttons(box, [okText, '取消']);
+    const done = (v) => {
+      ov.remove();
+      resolve(v);
+    };
+    btns[okText].classList.add('primary');
+    btns[okText].onclick = () => {
+      const out = {};
+      for (const f of fields) {
+        const w = widgets[f.key];
+        out[f.key] = f.type === 'checkbox' ? w.checked : w.value;
+      }
+      done(out);
+    };
+    btns['取消'].onclick = () => done(null);
+    ov.addEventListener('mousedown', (e) => {
+      if (e.target === ov) done(null);
+    });
+  });
+}
+
 export function infoModal(title, html) {
   return new Promise((resolve) => {
     const ov = overlay();

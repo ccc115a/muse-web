@@ -5,7 +5,7 @@ import { loadChildren } from './fs.js';
 const FILE = '.mdeditor.json';
 
 export function defaultConfig(defaultBranch = 'main') {
-  return { siteDir: 'site', branch: defaultBranch };
+  return { srcDir: '', siteDir: 'site', branch: defaultBranch };
 }
 
 /** 只讀設定（不存在就回預設，不建檔）：發佈流程用 */
@@ -19,6 +19,30 @@ export async function readProjectConfig(root, defaultBranch = 'main') {
   } catch {
     return defaultConfig(defaultBranch);
   }
+}
+
+/** 寫回設定檔（建檔若無），回傳 node；呼叫端自行 renderTree＋同步分頁 */
+export async function writeProjectConfig(root, cfg) {
+  const text = JSON.stringify(cfg, null, 2) + '\n';
+  let node;
+  if (root.handle) {
+    const h = await root.handle.getFileHandle(FILE, { create: true });
+    const w = await h.createWritable();
+    await w.write(text);
+    await w.close();
+    root.children = null;
+    await loadChildren(root).catch(() => {});
+    node = root.children?.find((c) => c.kind === 'file' && c.name === FILE);
+  } else {
+    node = root.children?.find((c) => c.kind === 'file' && c.name === FILE);
+    if (node) node.content = text;
+    else {
+      node = { name: FILE, kind: 'file', path: root.path + '/' + FILE, content: text, virtual: true };
+      root.children = root.children ?? [];
+      root.children.push(node);
+    }
+  }
+  return node;
 }
 
 /** 找或建設定檔，回傳 { config, node }；node 可直接開成分頁編輯 */

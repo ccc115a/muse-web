@@ -31,10 +31,12 @@ npm run build:web    # dist/ 單一 index.html，雙擊也能開
 1. 按「開啟資料夾」載入本機目錄：左側檔案樹＋分頁編輯，`Ctrl+S` 儲存。
    Chromium（Chrome/Edge）可直接寫回磁碟；Firefox/Safari 走相容模式（唯讀瀏覽＋下載存檔）。
 2. `.md` 分頁右側即時預覽（編輯／並排／預覽可切）；右鍵檔名可重新命名／刪除；可新增檔案／資料夾。
-3. 按「發佈靜態網站」：把整個資料夾轉成 gh-pages 站點（`.md`→同 renderer 的 HTML＋左側導覽，圖片等原樣複製），
-   Chromium 寫入 `<repo>/site/` ＋ `<repo>/.github/workflows/gh-pages.yml`（官方 Pages Action，監聽 `main`）；
-   相容模式改下載 zip。之後在 VSCode push，repo Settings → Pages → Source 選「GitHub Actions」即上線。
-   （跳過 `.git`／`node_modules`／隱藏檔／輸出目錄本身；根目錄 `README.md` 自動當首頁。）
+3. 按「發佈靜態網站」：選**來源資料夾**（`/` 整個 repo 或任一子目錄）→ 轉成 gh-pages 站點
+   （`.md`→同 renderer 的 HTML＋左側導覽，圖片等原樣複製），Chromium 寫入 `<repo>/<siteDir>/` ＋
+   `<repo>/.github/workflows/gh-pages.yml`（官方 Pages Action，`enablement: true` 首次自動開通）；
+   相容模式改下載 zip。選擇會記回 `.mdeditor.json`（`srcDir`／`siteDir`／`branch`）。
+   之後在 VSCode push，到 Actions 看第一次 run 變綠即上線（Source 應為 GitHub Actions）。
+   （跳過 `.git`／`node_modules`／隱藏檔／輸出目錄本身；來源內根目錄 `README.md` 自動當首頁。）
 4. 若是 git 專案，按「專案資訊」：本機分支／HEAD／最後 commit／remotes（唯讀），
    GitHub 專案再加 repo 簡介＋stars、最近 5 次 Actions 結果、Pages 站點與設定連結（公開 API 免登入）。
 5. 「專案設定」開啟 `.mdeditor.json`（`siteDir`／`branch`，不存在自動建，分支預填目前 git 分支），

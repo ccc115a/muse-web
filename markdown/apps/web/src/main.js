@@ -1,11 +1,16 @@
 import { createEditor } from './editor.js';
 import { renderPreview } from './preview.js';
 import { exportMarkdownToHtml } from '@md-gh/core';
-import { buildSiteFileMap, writeSiteToDisk, downloadSiteZip } from './site-export.js';
-import { inputModal, confirmModal, choiceModal, infoModal } from './modal.js';
+import {
+  buildSiteFileMap,
+  writeSiteToDisk,
+  downloadSiteZip,
+  listDirs,
+} from './site-export.js';
+import { inputModal, confirmModal, choiceModal, infoModal, formModal } from './modal.js';
 import { readGitInfo } from './git.js';
 import { repoUrl, actionsUrl, pagesSettingsUrl, pagesSiteUrl, getRepoInfo, getActionRuns } from './github.js';
-import { readProjectConfig, ensureProjectConfig } from './project.js';
+import { readProjectConfig, ensureProjectConfig, writeProjectConfig } from './project.js';
 import {
   NATIVE,
   isTextName,
@@ -408,38 +413,70 @@ if (mdView.mode === 'split') {
   document.querySelector('#md-views [data-view="split"]')?.classList.add('on');
 }
 
+async function findDirNode(base, rel) {
+  if (!rel) return base;
+  let cur = base;
+  for (const seg of rel.split('/')) {
+    const kids = cur.children ?? (cur.handle ? await loadChildren(cur) : []);
+    cur = kids.find((c) => c.kind === 'directory' && c.name === seg);
+    if (!cur) return null;
+  }
+  return cur;
+}
+
 $('publish-site').onclick = async () => {
   if (!root) return status('請先開啟資料夾（本站假設它就是 repo 根目錄）。');
-  // 設定來自 .mdeditor.json（按「專案設定」直接編輯），全程無 prompt
-  const { siteDir, branch } = await readProjectConfig(root, 'main');
-  const outDirInput = siteDir;
+  // 預設來自 .mdeditor.json，對話框可改並存回，全程無 prompt
+  const cfg = await readProjectConfig(root, 'main');
+  const dirs = await listDirs(root).catch(() => []);
+  const vals = await formModal('發佈靜態網站', [
+    {
+      key: 'srcDir',
+      label: '來源資料夾',
+      type: 'select',
+      value: cfg.srcDir ?? '',
+      options: [{ value: '', label: '/（整個 repo）' }, ...dirs.map((d) => ({ value: d, label: d }))],
+    },
+    { key: 'siteDir', label: '輸出目錄（repo 內，可巢狀如 docs/site）', value: cfg.siteDir ?? 'site' },
+    { key: 'branch', label: '部署分支（Action 監聽）', value: cfg.branch ?? 'main' },
+    { key: 'save', type: 'checkbox', text: '記住到 .mdeditor.json', checked: true },
+  ]);
+  if (!vals) return;
+  const { sanitizeOutDir, sanitizeSrcDir } = await import('@md-gh/core');
+  let outDir, srcDir;
+  try {
+    outDir = sanitizeOutDir(vals.siteDir);
+    srcDir = sanitizeSrcDir(vals.srcDir);
+  } catch (e) {
+    return status(`設定無效：${e.message}`);
+  }
+  const branch = (vals.branch ?? '').trim() || 'main';
+  const srcNode = await findDirNode(root, srcDir);
+  if (!srcNode) return status(`找不到來源資料夾：${srcDir || '/'}`);
+  if (vals.save) {
+    await writeProjectConfig(root, { srcDir, siteDir: outDir, branch }).catch((e) =>
+      status(`設定存回失敗（仍繼續發佈）：${e.message}`)
+    );
+    renderTree();
+  }
   try {
     status('產生靜態網站中…');
-    // 先正規化輸出目錄（擋尾斜線/空段，否則 getDirectoryHandle 報 Name is not allowed）
-    const { sanitizeOutDir } = await import('@md-gh/core');
-    let outDir;
-    try {
-      outDir = sanitizeOutDir(outDirInput);
-    } catch (e) {
-      return status(`輸出目錄無效：${e.message}`);
-    }
-    const { fileMap, pages } = await buildSiteFileMap(root, outDir, (m) => status(m));
+    const { fileMap, pages } = await buildSiteFileMap(root, outDir, (m) => status(m), srcNode);
     if (!pages.length) return status('資料夾內沒有 .md 檔。');
+    const srcLabel = srcDir || '/';
     if (NATIVE && root.handle) {
-      const { written, failed } = await writeSiteToDisk(root, outDir, fileMap, branch || 'main', (m) =>
-        status(m)
-      );
+      const { written, failed } = await writeSiteToDisk(root, outDir, fileMap, branch, (m) => status(m));
       const failMsg = failed.length
         ? ` 失敗 ${failed.length} 個：` + failed.slice(0, 3).map((f) => `${f.rel}（${f.error}）`).join('；')
         : '';
       status(
-        `完成：${pages.length} 頁，寫入 ${written} 個檔 → ${outDir}/ ＋ .github/workflows/gh-pages.yml。${failMsg}` +
+        `完成：來源 ${srcLabel}（${pages.length} 頁），寫入 ${written} 個檔 → ${outDir}/ ＋ .github/workflows/gh-pages.yml。${failMsg}` +
           `用 VSCode push 後，到 repo Settings → Pages → Source 選「GitHub Actions」即上線。`
       );
     } else {
       await downloadSiteZip(root.name, outDir, fileMap, branch, (m) => status(m));
       status(
-        `已下載 ${root.name}-${outDir}.zip（含站點＋Action）。解壓進 repo 根目錄再 push，` +
+        `已下載 ${root.name}-${outDir}.zip（來源 ${srcLabel}，含站點＋Action）。解壓進 repo 根目錄再 push，` +
           `到 Settings → Pages → Source 選「GitHub Actions」即上線。`
       );
     }
@@ -529,6 +566,24 @@ $('project-info').onclick = async () => {
   }
   status('就緒');
   await infoModal(`專案資訊：${root.name}`, html);
+};
+
+$('view-gh').onclick = async () => {
+  if (!root) return status('請先開啟資料夾。');
+  status('推算 Pages 網址…');
+  try {
+    const g = await readGitInfo(root);
+    if (!g.github) {
+      return status(
+        g.isGit ? 'remote 不是 github.com，無法推算 Pages 網址（自架主機請直接開該網址）。' : '不是 git 專案，無法推算 Pages 網址。'
+      );
+    }
+    const url = pagesSiteUrl(g.github.owner, g.github.repo);
+    window.open(url, '_blank');
+    status(`已開啟 ${url}（剛發佈要等 Action 跑完約半分鐘才看得到更新）`);
+  } catch (e) {
+    status(`無法推算網址：${e.message}`);
+  }
 };
 
 $('download-html').onclick = () => {

@@ -57,6 +57,8 @@ button:disabled { opacity: 0.5; cursor: default; }
 #editor { overflow: auto; background: #fff; border-right: 1px solid #d0d7de; }
 #editor .cm-editor { height: 100%; }
 #preview { overflow: auto; background: #fff; padding: 16px 24px; }
+/* 預覽窗連結全禁點：誤點不再整頁跳走（相對連結本來就是壞的，外部與錨點一併禁，保持純靜態） */
+#preview a { pointer-events: none; color: #58a6ff; }
 
 /* --- markdown 樣式補強 --- */
 .markdown-alert { padding: 0.5rem 1rem; margin-bottom: 1rem; border-left: 0.25em solid #888; border-radius: 6px; background: #f6f8fa; }
@@ -80,7 +82,8 @@ pre.mermaid { background: #f6f8fa; padding: 16px; border-radius: 6px; }
 .modal.wide { max-width: 640px; width: 90vw; }
 .modal h3 { margin: 0 0 10px; font-size: 1em; }
 .modal p { font-size: 0.9em; }
-.modal input[type="text"] { width: 100%; padding: 6px 8px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 0.95em; }
+.modal input[type="text"], .modal select { width: 100%; padding: 6px 8px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 0.95em; margin-bottom: 6px; background: #fff; }
+.modal-check { display: block; font-size: 0.88em; margin: 6px 0; }
 .modal-label { font-size: 0.85em; color: #57606a; margin-bottom: 4px; }
 .modal-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .modal-choice { display: block; width: 100%; margin: 4px 0; text-align: left; }
