@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>webpy — 瀏覽器 Python 筆記本</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<header class="toolbar">
+  <div class="brand">🐍 webpy <span class="sub">Pyodide · Colab-like · 純前端</span></div>
+  <div class="actions">
+    <button id="btnRunAll" title="依序執行全部程式碼 cell">▶ 全部執行</button>
+    <button id="btnAddCode">+ Code</button>
+    <button id="btnAddMd">+ Markdown</button>
+    <button id="btnInterrupt" class="danger" title="終止 Worker (救死迴圈)">⏹ 中斷</button>
+    <button id="btnRestart" title="重啟 Python 核心">🔄 重啟核心</button>
+    <button id="btnClear">🧹 清輸出</button>
+    <button id="btnSave">💾 存檔</button>
+    <button id="btnLoad">📂 讀檔</button>
+    <input type="file" id="fileInput" accept=".json,.webpy.json" hidden>
+  </div>
+</header>
+
+<div class="statusbar">
+  <span id="engineStatus" class="pill loading">引擎載入中…</span>
+  <span class="hint">支援完整 Python 語法 (CPython wasm) · 重運算跑在 Web Worker · <span id="spinner" class="spinner"></span> 旋轉=主線程未卡死</span>
+  <span class="pkgbox">
+    <input id="pkgInput" placeholder="pip 套件, 如 numpy">
+    <button id="btnPkg">安裝</button>
+  </span>
+</div>
+
+<main id="notebook"></main>
+
+<footer>
+  <span>webpy v0.1.0 · <a href="https://pyodide.org" target="_blank">Pyodide</a> 驅動 · 開啟方式: <code>npx serve .</code> 後用瀏覽器打開 (不要直接 file:// 開, Worker 會被擋)</span>
+</footer>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>

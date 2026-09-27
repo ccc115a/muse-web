@@ -1,0 +1,15 @@
+{
+  "name": "llm-03-distill",
+  "private": true,
+  "version": "0.1.0",
+  "description": "mini-llm v3-distill rebuilt with tf.js (tfjs-node native backend): RMSNorm + RoPE + SwiGLU + tied embedding",
+  "type": "commonjs",
+  "scripts": {
+    "pretrain": "node pretrain.js",
+    "finetune": "node finetune.js",
+    "run": "./run.sh"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs-node": "^4.22.0"
+  }
+}

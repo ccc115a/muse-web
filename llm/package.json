@@ -1,8 +1,0 @@
-{
-  "name": "muse-web-llm",
-  "private": true,
-  "type": "commonjs",
-  "dependencies": {
-    "@tensorflow/tfjs-node": "^4.22.0"
-  }
-}

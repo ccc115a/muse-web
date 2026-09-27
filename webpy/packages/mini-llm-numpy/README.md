@@ -1,0 +1,64 @@
+# mini-llm-numpy
+
+純 numpy 微型 Transformer：RMSNorm + RoPE + SwiGLU + tied embedding + AdamW，
+**零 torch 依賴**，跑在 torch 去不了的地方（Pyodide 瀏覽器 / Node、精簡嵌入式環境）。
+
+架構與 `mini-llm/v3-distill` 原 torch 版 `model.py` 對應、數學等價；反向傳播手寫，
+已用數值梯度檢查驗證（見 `tests/test_grad.py`）。
+
+## 安裝
+
+```bash
+pip install ./packages/mini-llm-numpy
+# 或從 git：
+pip install git+https://<your-repo>#subdirectory=webpy/packages/mini-llm-numpy
+```
+
+## 使用
+
+```python
+import numpy as np
+from mini_llm_numpy import (
+    build_vocab, make_codec, get_batch,
+    init_params, build_rope, forward, ce_loss_and_bwd,
+    adam_init, clip_grads, adam_step, generate,
+)
+
+stoi, itos, vs = build_vocab(pretrain_text, finetune_text)
+encode, decode = make_codec(stoi, itos)
+data = np.array(encode(pretrain_text), dtype=np.int64)
+
+cfg = {"d": 64, "heads": 2, "layers": 2, "seq": 32, "vocab": vs}
+rng = np.random.default_rng(0)
+rope = build_rope(cfg["d"] // cfg["heads"], cfg["seq"] * 2)
+params = init_params(vs, cfg["d"], cfg["layers"])
+opt = adam_init(params)
+
+for t in range(1, 121):
+    xb, yb = get_batch(rng, data, 16, cfg["seq"])
+    logits, cache = forward(params, xb, rope, cfg)
+    loss, grads = ce_loss_and_bwd(params, logits, cache, yb)
+    clip_grads(grads, 1.0)
+    adam_step(params, grads, opt, 5e-4, t)
+
+out = generate(params, np.array([encode("<Q>火星怎樣？<A>")]), 100, rope, cfg)
+print(decode(out[0].tolist()))
+```
+
+## 測試
+
+```bash
+cd packages/mini-llm-numpy
+pytest
+```
+
+含數值梯度檢查；另已用原 torch 版做黃金標準對照：同權重同 batch 下
+loss 到小數點後 6 位一致、全部梯度最大相對誤差 ~1e-3（fp32 兩邊 op 順序不同的舍入雜訊），
+且全規模訓練收斂曲線與 torch 版一致（pretrain 5.7→0.29 / finetune 5.1→0.23）。
+
+## 瀏覽器（webpy）怎麼引用
+
+瀏覽器不能 `pip install` 本地路徑，`webpy/examples/mini-llm` 的做法是：
+用 `pyodide.http.open_url` 抓 `src/mini_llm_numpy/model.py` 原始碼、
+寫入 Pyodide FS 再 `import`——引用的永遠是這裡的單一真相來源，不複製程式碼。
+詳見 `examples/mini-llm/cells/03_use_package.py`。

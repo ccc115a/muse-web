@@ -1,0 +1,17 @@
+{
+  "name": "webpy",
+  "version": "0.1.0",
+  "description": "webpy: pure-frontend Colab-like Python dev environment powered by Pyodide (WebAssembly CPython), runs in Node.js and Browser (Web Worker).",
+  "type": "module",
+  "scripts": {
+    "serve": "npx serve .",
+    "demo:node": "node examples/node-demo.mjs",
+    "install:pyodide": "npm install pyodide"
+  },
+  "dependencies": {
+    "pyodide": "^0.25.0"
+  },
+  "devDependencies": {
+    "serve": "^14.2.1"
+  }
+}

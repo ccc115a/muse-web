@@ -1,0 +1,12 @@
+README.md
+pyproject.toml
+src/mini_llm_numpy/__init__.py
+src/mini_llm_numpy/data.py
+src/mini_llm_numpy/model.py
+src/mini_llm_numpy.egg-info/PKG-INFO
+src/mini_llm_numpy.egg-info/SOURCES.txt
+src/mini_llm_numpy.egg-info/dependency_links.txt
+src/mini_llm_numpy.egg-info/requires.txt
+src/mini_llm_numpy.egg-info/top_level.txt
+tests/test_grad.py
+tests/test_smoke.py

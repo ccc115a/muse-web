@@ -1,0 +1,14 @@
+{
+  "name": "webnn",
+  "version": "0.1.0",
+  "description": "From-scratch JS neural network engine (typed-array kernels, explicit reverse-mode autodiff, AdamW) + mini-LLM. No tf.js in the model path.",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/kernels.mjs && node tests/gradcheck.mjs && node tests/equiv.mjs",
+    "train": "node train.mjs",
+    "bench": "node bench/matmul.mjs"
+  },
+  "devDependencies": {
+    "@tensorflow/tfjs": "^4.17.0"
+  }
+}
