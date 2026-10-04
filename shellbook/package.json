@@ -1,0 +1,36 @@
+{
+  "name": "shellbook",
+  "version": "1.0.0",
+  "description": "Markdown reader with runnable shell blocks and a live terminal",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node bin/shellbook.js examples",
+    "test": "node --test --test-reporter=spec --test-concurrency=1 \"test/unit/*.test.js\" \"test/e2e/protocol.test.js\" \"test/e2e/frontend-jsdom.test.js\"",
+    "test:unit": "node --test \"test/unit/*.test.js\"",
+    "test:protocol": "node --test \"test/e2e/protocol.test.js\"",
+    "test:e2e": "playwright test",
+    "test:all": "npm test && npm run test:e2e",
+    "test:frontend": "node --test \"test/e2e/frontend-jsdom.test.js\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@lydell/node-pty": "^1.2.0-beta.15",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "express": "^5.2.1",
+    "marked": "^18.0.14",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "jsdom": "^30.1.1"
+  },
+  "bin": {
+    "shellbook": "bin/shellbook.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

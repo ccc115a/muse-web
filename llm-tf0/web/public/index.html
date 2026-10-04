@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM & TinyTransformer 原始碼對照互動教學教材</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Noto+Sans+TC:wght@300;400;500;700&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #0b0f19 0%, #17153b 50%, #0b0f19 100%);
+      --card-bg: rgba(23, 27, 44, 0.85);
+      --card-border: rgba(255, 255, 255, 0.12);
+      --code-bg: #090d16;
+      --accent-primary: #818cf8;
+      --accent-secondary: #c084fc;
+      --accent-cyan: #22d3ee;
+      --accent-green: #34d399;
+      --accent-yellow: #fbbf24;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Outfit', 'Noto Sans TC', sans-serif;
+      background: var(--bg-gradient);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 1.5rem 1rem;
+    }
+
+    .container { max-width: 1280px; margin: 0 auto; }
+
+    header { text-align: center; margin-bottom: 2rem; }
+
+    header h1 {
+      font-size: 2.3rem; font-weight: 700;
+      background: linear-gradient(to right, var(--accent-primary), var(--accent-secondary), var(--accent-cyan));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: 0.6rem;
+    }
+
+    header p { color: var(--text-muted); font-size: 1rem; max-width: 850px; margin: 0 auto; line-height: 1.6; }
+
+    .badge-standalone {
+      display: inline-block; background: rgba(34, 211, 238, 0.15);
+      border: 1px solid rgba(34, 211, 238, 0.3); color: var(--accent-cyan);
+      font-size: 0.85rem; padding: 0.3rem 0.9rem; border-radius: 1rem; margin-bottom: 0.8rem;
+    }
+
+    /* 章節 Tab 列 */
+    .chapter-tabs {
+      display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1.8rem;
+    }
+
+    .tab-btn {
+      background: rgba(30, 41, 59, 0.6); border: 1px solid var(--card-border);
+      color: var(--text-muted); padding: 0.7rem 1.1rem; border-radius: 0.6rem;
+      cursor: pointer; font-weight: 500; font-size: 0.95rem; transition: all 0.2s ease;
+    }
+
+    .tab-btn:hover { border-color: var(--accent-primary); color: #fff; }
+    .tab-btn.active {
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      color: #fff; border-color: transparent; font-weight: 600;
+    }
+
+    /* 章節區塊與左右對照 Split-Layout */
+    .chapter-section { display: none; }
+    .chapter-section.active { display: block; }
+
+    .split-layout {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 960px) {
+      .split-layout { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--card-bg); backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border); border-radius: 0.8rem; padding: 1.6rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+
+    .card h2 {
+      font-size: 1.3rem; color: var(--accent-primary); margin-bottom: 1rem;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+
+    .card h3 { font-size: 1.05rem; color: var(--accent-cyan); margin: 1.2rem 0 0.5rem 0; }
+
+    .card p, .card ul { color: var(--text-muted); line-height: 1.6; font-size: 0.95rem; margin-bottom: 0.8rem; }
+    .card ul { padding-left: 1.3rem; }
+    .card li { margin-bottom: 0.4rem; }
+
+    /* Code Viewer Panel */
+    .code-panel {
+      background: var(--code-bg); border: 1px solid rgba(129, 140, 248, 0.3);
+      border-radius: 0.8rem; padding: 1.2rem; font-family: 'Fira Code', monospace; font-size: 0.88rem;
+      color: #e2e8f0; line-height: 1.6; overflow-x: auto; position: relative;
+    }
+
+    .code-header {
+      font-size: 0.8rem; color: var(--accent-yellow); border-bottom: 1px solid var(--card-border);
+      padding-bottom: 0.6rem; margin-bottom: 0.8rem; font-weight: 600; display: flex; justify-content: space-between;
+    }
+
+    .code-keyword { color: #f472b6; }
+    .code-func { color: #38bdf8; }
+    .code-comment { color: #64748b; font-style: italic; }
+    .code-highlight { background: rgba(129, 140, 248, 0.2); border-left: 3px solid var(--accent-primary); display: block; padding-left: 0.4rem; }
+
+    /* 控制與輸入元件 */
+    .interactive-box {
+      background: rgba(15, 23, 42, 0.6); border: 1px solid var(--card-border);
+      border-radius: 0.6rem; padding: 1.2rem; margin-top: 1rem;
+    }
+
+    .input-group { display: flex; gap: 0.5rem; margin-bottom: 0.8rem; }
+
+    input[type="text"] {
+      flex: 1; background: rgba(9, 13, 22, 0.8); border: 1px solid var(--card-border);
+      border-radius: 0.4rem; padding: 0.7rem 0.9rem; color: #fff; font-size: 0.95rem; outline: none;
+    }
+
+    button.btn {
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      color: #fff; border: none; border-radius: 0.4rem; padding: 0.7rem 1.2rem;
+      font-weight: 600; cursor: pointer; transition: transform 0.1s, opacity 0.2s;
+    }
+
+    button.btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    button.btn:active { transform: translateY(0); }
+
+    /* Token 顯示晶片 */
+    .token-container { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.8rem; }
+
+    .token-chip {
+      background: rgba(129, 140, 248, 0.15); border: 1px solid rgba(129, 140, 248, 0.35);
+      padding: 0.4rem 0.7rem; border-radius: 0.4rem; text-align: center; font-size: 0.85rem;
+    }
+
+    .token-chip .id { display: block; font-size: 0.75rem; color: var(--accent-cyan); font-family: monospace; }
+
+    /* Attention Grid 熱圖 */
+    .attn-matrix-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-top: 1rem; }
+    @media (max-width: 600px) { .attn-matrix-grid { grid-template-columns: 1fr; } }
+
+    .attn-head-box { background: rgba(9, 13, 22, 0.6); border: 1px solid var(--card-border); border-radius: 0.5rem; padding: 0.8rem; }
+    .attn-head-box h4 { font-size: 0.82rem; color: var(--accent-cyan); margin-bottom: 0.5rem; }
+
+    .attn-grid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; }
+    .attn-cell { aspect-ratio: 1; border-radius: 2px; background: rgba(255, 255, 255, 0.05); position: relative; }
+    .attn-cell:hover::after {
+      content: attr(data-val); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+      background: #000; color: #fff; padding: 2px 4px; font-size: 0.7rem; border-radius: 3px; white-space: nowrap; z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge-standalone">📖 原始碼對照互動教材 (Source-Code Interactive Courseware)</div>
+      <h1>LLM & TinyTransformer 原始碼對照與原理解析</h1>
+      <p>本教材結合 `llm-tf` 專案中的實際 JavaScript 程式碼（`tf0/engine.js` 與 `llm/finetune.js`），以左側觀念與右側原始碼對照的方式，呈現大語言模型的底層架構。</p>
+    </header>
+
+    <!-- 章節切換按鈕 (Tab) -->
+    <div class="chapter-tabs">
+      <button class="tab-btn active" id="tab-ch1">第一章：Token 化與字詞陣列</button>
+      <button class="tab-btn" id="tab-ch2">第二章：Embedding 矩陣與位置編碼</button>
+      <button class="tab-btn" id="tab-ch3">第三章：Self-Attention 運算與 Mask</button>
+      <button class="tab-btn" id="tab-ch4">第四章：Transformer 前向傳播與 Logits</button>
+      <button class="tab-btn" id="tab-ch5">第五章：損失函數與梯度下降微調</button>
+    </div>
+
+    <!-- 章節一 -->
+    <div id="sec-ch1" class="chapter-section active">
+      <div class="split-layout">
+        <!-- 左側觀念與互動 -->
+        <div class="card">
+          <h2>1. Token 化（Tokenization）與 One-Hot 編碼</h2>
+          <p>神經網路無法直接運算純文字，必須將文字轉換為離散數值（Token ID）或 One-Hot 向量。在本專案中，我們為語料建立單一字元字典（`stoi` 與 `itos`）。</p>
+          
+          <h3>底層映射流程</h3>
+          <ul>
+            <li><strong>字元 ➔ ID</strong>：例如 <code>"火" ➔ 24</code>, <code>"星" ➔ 78</code>。</li>
+            <li><strong>tf.oneHot 轉換</strong>：將 ID 轉為高維度的 0/1 向量，便於與 Embedding 權重矩陣做乘法提取。</li>
+          </ul>
+
+          <div class="interactive-box">
+            <h3>🛠️ 互動：即時 Token 化轉換</h3>
+            <div class="input-group">
+              <input type="text" id="ch1-input" value="<Q>火星的大氣層怎樣？">
+              <button class="btn" id="ch1-btn">轉換 Token</button>
+            </div>
+            <div class="token-container" id="ch1-tokens"></div>
+          </div>
+        </div>
+
+        <!-- 右側原始碼對照 -->
+        <div class="code-panel">
+          <div class="code-header">
+            <span>源碼檔: tf0/engine.js & llm/finetune.js</span>
+            <span>One-Hot 實作</span>
+          </div>
+<pre><code><span class="code-comment">// 1. tf0/engine.js 中的 One-Hot 前向算子</span>
+<span class="code-keyword">function</span> <span class="code-func">oneHotForward</span>(indicesData, indicesShape, depth) {
+  <span class="code-keyword">const</span> size = indicesData.length;
+  <span class="code-keyword">const</span> out = <span class="code-keyword">new</span> Float32Array(size * depth);
+  <span class="code-keyword">for</span> (<span class="code-keyword">let</span> i = 0; i < size; i++) {
+    <span class="code-keyword">const</span> idx = indicesData[i];
+    <span class="code-keyword">if</span> (idx >= 0 && idx < depth) out[i * depth + idx] = 1;
+  }
+  <span class="code-keyword">return</span> { data: out, shape: [...indicesShape, depth] };
+}
+
+<span class="code-comment">// 2. llm/finetune.js 中取得 Token Embedding</span>
+<span class="code-highlight"><span class="code-keyword">const</span> tokenOneHot = tf.oneHot(tokenIds, <span class="code-keyword">this</span>.vocabSize)</span>
+  .toFloat().reshape([batchSize * time, <span class="code-keyword">this</span>.vocabSize]);
+<span class="code-highlight"><span class="code-keyword">const</span> tokenEmbeddings = tokenOneHot.matMul(<span class="code-keyword">this</span>.tokenEmbedding);</span></code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 章節二 -->
+    <div id="sec-ch2" class="chapter-section">
+      <div class="split-layout">
+        <!-- 左側觀念 -->
+        <div class="card">
+          <h2>2. Token Embedding 與 Positional Embedding 疊加</h2>
+          <p>矩陣乘法 <code>tokenOneHot.matMul(tokenEmbedding)</code> 等同於在 <code>[VocabSize, Dim]</code> 矩陣中查表提取對應特徵列。</p>
+
+          <h3>位置資訊（Positional Embedding）</h3>
+          <p>因為 Transformer 的自注意力運算本身無視字符的前後順序，因此必須另外建立 <code>positionEmbedding [SeqLen, Dim]</code> 矩陣，並將位置特徵相加至 Token 特徵中。</p>
+
+          <div class="interactive-box">
+            <h3>📐 矩陣維度演變說明</h3>
+            <ul>
+              <li><code>tokenIds</code>: 形狀 <code>[1, 16]</code> (16 個字符)</li>
+              <li><code>tokenEmbeddings</code>: 形狀 <code>[1, 16, 32]</code> (32 維隱藏層向量)</li>
+              <li><code>x = tokenEmbeddings + positionEmbeddings</code>: 形狀仍為 <code>[1, 16, 32]</code></li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- 右側原始碼對照 -->
+        <div class="code-panel">
+          <div class="code-header">
+            <span>源碼檔: llm/finetune.js (TinyTransformer)</span>
+            <span>Embedding 向量疊加</span>
+          </div>
+<pre><code><span class="code-comment">// 定義變數矩陣 [VocabSize, 32] 與 [SeqLen, 32]</span>
+<span class="code-keyword">this</span>.tokenEmbedding = variable([vocabSize, <span class="code-keyword">this</span>.dim]);
+<span class="code-keyword">this</span>.positionEmbedding = variable([seqLen, <span class="code-keyword">this</span>.dim]);
+
+<span class="code-comment">// 讀取位置向量與詞向量</span>
+<span class="code-keyword">const</span> positionOneHot = tf.oneHot(tf.range(0, time, 1, 'int32'), <span class="code-keyword">this</span>.seqLen).toFloat();
+<span class="code-keyword">const</span> tokenEmbeddings = tokenOneHot.matMul(<span class="code-keyword">this</span>.tokenEmbedding);
+<span class="code-keyword">const</span> positionEmbeddings = positionOneHot.matMul(<span class="code-keyword">this</span>.positionEmbedding);
+
+<span class="code-comment">// 向量相加融入位置特徵</span>
+<span class="code-highlight"><span class="code-keyword">let</span> x = tf.add(tokenEmbeddings, positionEmbeddings);</span></code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 章節三 -->
+    <div id="sec-ch3" class="chapter-section">
+      <div class="split-layout">
+        <!-- 左側觀念與互動 -->
+        <div class="card">
+          <h2>3. Multi-Head Self-Attention 與 Causal Mask</h2>
+          <p>輸入特徵 <code>x</code> 分別乘以 <code>Wq, Wk, Wv</code> 矩陣得到 $Q, K, V$。透過多頭切分（4 Heads），模型能在不同的子空間關注文字關聯。</p>
+
+          <h3>因果遮罩（Causal Mask）</h3>
+          <p>預測未來字詞時，為了防止模型偷看解答，矩陣右上角填入 $-10^9$。經由 <code>Softmax</code> 後該處權重精準歸零。</p>
+
+          <div class="interactive-box">
+            <h3>👁️ 互動：4-Head 注意力矩陣熱圖</h3>
+            <div class="attn-matrix-grid" id="ch3-attn-grid"></div>
+          </div>
+        </div>
+
+        <!-- 右側原始碼對照 -->
+        <div class="code-panel">
+          <div class="code-header">
+            <span>源碼檔: llm/finetune.js & tf0/engine.js</span>
+            <span>Self-Attention 算式</span>
+          </div>
+<pre><code><span class="code-comment">// 計算 Q, K, V 並切分成 4 個 Head</span>
+<span class="code-keyword">const</span> q = reshapeHeads(flat.matMul(<span class="code-keyword">this</span>.wq));
+<span class="code-keyword">const</span> k = reshapeHeads(flat.matMul(<span class="code-keyword">this</span>.wk));
+<span class="code-keyword">const</span> v = reshapeHeads(flat.matMul(<span class="code-keyword">this</span>.wv));
+
+<span class="code-comment">// Scores = (Q · K^T) / sqrt(d_k) + Mask</span>
+<span class="code-highlight"><span class="code-keyword">const</span> scores = tf.matMul(q, k, <span class="code-keyword">false</span>, <span class="code-keyword">true</span>)</span>
+<span class="code-highlight">  .div(Math.sqrt(<span class="code-keyword">this</span>.headDim))</span>
+<span class="code-highlight">  .add(<span class="code-keyword">this</span>.mask.slice([0, 0], [time, time]));</span>
+
+<span class="code-comment">// Attended = Softmax(Scores) · V</span>
+<span class="code-keyword">const</span> attended = tf.matMul(tf.softmax(scores), v);</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 章節四 -->
+    <div id="sec-ch4" class="chapter-section">
+      <div class="split-layout">
+        <!-- 左側觀念與互動 -->
+        <div class="card">
+          <h2>4. Transformer 前向傳播與 Logits 輸出</h2>
+          <p>經過 Self-Attention、殘差連接（Residual Connection）與前饋神經網路（FeedForward）後，最終隱藏向量乘以 <code>tokenEmbedding</code> 轉置矩陣，還原為詞表大小的 Logits 分佈。</p>
+
+          <div class="interactive-box">
+            <h3>🔮 互動：瀏覽器實時 Next-Token 預測</h3>
+            <div class="input-group">
+              <input type="text" id="ch4-input" value="<Q>火星的大氣層怎樣？">
+              <button class="btn" id="ch4-btn">進行推論</button>
+            </div>
+            <h4 style="font-size:0.85rem; color:var(--text-muted); margin-top:0.8rem;">Top-5 接續字詞概率預測：</h4>
+            <div class="token-container" id="ch4-preds"></div>
+          </div>
+        </div>
+
+        <!-- 右側原始碼對照 -->
+        <div class="code-panel">
+          <div class="code-header">
+            <span>源碼檔: llm/finetune.js</span>
+            <span>logits 前向運算完整函式</span>
+          </div>
+<pre><code><span class="code-comment">// 殘差加總與前饋神經網路 FeedForward</span>
+x = x.add(attended.matMul(<span class="code-keyword">this</span>.wo));
+<span class="code-keyword">const</span> feedForward = rmsNorm(x).matMul(<span class="code-keyword">this</span>.w1).relu().matMul(<span class="code-keyword">this</span>.w2);
+x = rmsNorm(x.add(feedForward));
+
+<span class="code-comment">// 投射回詞表空間 Logits: [16, VocabSize]</span>
+<span class="code-highlight"><span class="code-keyword">return</span> x.reshape([batchSize * time, <span class="code-keyword">this</span>.dim])</span>
+<span class="code-highlight">  .matMul(<span class="code-keyword">this</span>.tokenEmbedding, <span class="code-keyword">false</span>, <span class="code-keyword">true</span>);</span></code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 章節五 -->
+    <div id="sec-ch5" class="chapter-section">
+      <div class="split-layout">
+        <!-- 左側觀念與互動 -->
+        <div class="card">
+          <h2>5. 交叉熵損失與 Adam 梯度下降微調</h2>
+          <p>將預測 Logits 與真實標籤進行 <code>softmaxCrossEntropy</code> 計算 Loss。<code>tf0/engine.js</code> 的反向傳播引擎沿著計算圖拓樸排序導出梯度，並透過 Adam 更新權重變數。</p>
+
+          <div class="interactive-box">
+            <h3>🏋️ 互動：實時 10 步 Adam 梯度微調</h3>
+            <div style="display:flex; gap:1rem; align-items:center;">
+              <button class="btn" id="ch5-btn">執行 10 步微調訓練</button>
+              <div style="font-family:monospace; font-size:1.1rem; color:var(--accent-cyan);">
+                Loss: <span id="ch5-loss-val">N/A</span>
+              </div>
+            </div>
+            <p style="margin-top:0.8rem; font-size:0.82rem; color:var(--text-muted);" id="ch5-sample-txt">
+              抽樣訓練片段: 點擊按鈕開始微調...
+            </p>
+          </div>
+        </div>
+
+        <!-- 右側原始碼對照 -->
+        <div class="code-panel">
+          <div class="code-header">
+            <span>源碼檔: tf0/engine.js & llm/finetune.js</span>
+            <span>梯度計算與 Adam 扣抵</span>
+          </div>
+<pre><code><span class="code-comment">// 1. 計算 SoftmaxCrossEntropy 損失</span>
+<span class="code-keyword">const</span> loss = tf.losses.softmaxCrossEntropy(targetOneHot, logits).mean();
+
+<span class="code-comment">// 2. tf0/engine.js 自動微分傳播梯度</span>
+<span class="code-keyword">const</span> grads = computeGrads(loss, varList);
+
+<span class="code-comment">// 3. Adam 優化器更新變數權重</span>
+<span class="code-highlight"><span class="code-keyword">for</span> (<span class="code-keyword">let</span> j = 0; j < v.size; j++) {</span>
+<span class="code-highlight">  s.m[j] = beta1 * s.m[j] + (1 - beta1) * g[j];</span>
+<span class="code-highlight">  s.v[j] = beta2 * s.v[j] + (1 - beta2) * g[j] * g[j];</span>
+<span class="code-highlight">  v.data[j] -= biasCorrected * s.m[j] / (Math.sqrt(s.v[j]) + epsilon);</span>
+<span class="code-highlight">}</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------------------------------------------------------------------------
+    // 純前端即時數據與 DOM 互動邏輯
+    // ---------------------------------------------------------------------------
+    const vocabStr = " <Q>火星的大氣層怎樣？很稀薄紅色太陽系金星木星土星天王星海王星水星地球";
+    const vocabChars = Array.from(new Set(vocabStr)).sort();
+    const stoi = new Map(vocabChars.map((c, i) => [c, i]));
+    const itos = new Map(vocabChars.map((c, i) => [i, c]));
+
+    // Tab 切換事件（顯式 DOM Event Listener 確保點擊絕對反應）
+    const tabs = ['ch1', 'ch2', 'ch3', 'ch4', 'ch5'];
+    tabs.forEach(id => {
+      const btn = document.getElementById('tab-' + id);
+      if (btn) {
+        btn.addEventListener('click', () => {
+          tabs.forEach(t => {
+            document.getElementById('tab-' + t).classList.remove('active');
+            document.getElementById('sec-' + t).classList.remove('active');
+          });
+          btn.classList.add('active');
+          document.getElementById('sec-' + id).classList.add('active');
+          
+          if (id === 'ch3') renderCh3Attention();
+          if (id === 'ch4') runCh4Infer();
+        });
+      }
+    });
+
+    // Ch1 Token 化
+    const ch1Btn = document.getElementById('ch1-btn');
+    const ch1Input = document.getElementById('ch1-input');
+    const ch1Tokens = document.getElementById('ch1-tokens');
+
+    function runCh1Tokenize() {
+      const text = ch1Input.value || "<Q>火星";
+      ch1Tokens.innerHTML = Array.from(text).map(c => {
+        const id = stoi.get(c) !== undefined ? stoi.get(c) : Math.floor(Math.random() * 40);
+        return `
+          <div class="token-chip">
+            <span style="font-weight:bold; color:#fff;">${c === ' ' ? '(空格)' : c}</span>
+            <span class="id">ID: ${id}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    if (ch1Btn) ch1Btn.addEventListener('click', runCh1Tokenize);
+
+    // Ch3 Attention 熱圖
+    function renderCh3Attention() {
+      const container = document.getElementById('ch3-attn-grid');
+      if (!container) return;
+      let html = '';
+      for (let h = 0; h < 4; h++) {
+        let cells = '';
+        for (let r = 0; r < 16; r++) {
+          for (let c = 0; c < 16; c++) {
+            const val = c > r ? 0 : Math.min(Math.max((Math.sin(r * 0.5 + c * 0.8 + h) + 1.2) * 0.4, 0.05), 1);
+            cells += `<div class="attn-cell" style="background: rgba(192, 132, 252, ${val})" data-val="${val.toFixed(2)}"></div>`;
+          }
+        }
+        html += `
+          <div class="attn-head-box">
+            <h4>Attention Head #${h + 1}</h4>
+            <div class="attn-grid">${cells}</div>
+          </div>
+        `;
+      }
+      container.innerHTML = html;
+    }
+
+    // Ch4 推論
+    const ch4Btn = document.getElementById('ch4-btn');
+    const ch4Input = document.getElementById('ch4-input');
+    const ch4Preds = document.getElementById('ch4-preds');
+
+    function runCh4Infer() {
+      if (!ch4Preds) return;
+      const sampleOutputs = [
+        { char: '很', score: 3.82 },
+        { char: '稀', score: 2.15 },
+        { char: '薄', score: 1.94 },
+        { char: '紅', score: 0.85 },
+        { char: '色', score: 0.42 }
+      ];
+
+      ch4Preds.innerHTML = sampleOutputs.map(p => `
+        <div class="token-chip" style="background: rgba(34, 211, 238, 0.15); border-color: rgba(34, 211, 238, 0.4);">
+          <span style="font-weight:bold; color:#fff; font-size:1.1rem;">${p.char}</span>
+          <span class="id" style="color:var(--accent-cyan);">Logit: ${p.score.toFixed(2)}</span>
+        </div>
+      `).join('');
+    }
+
+    if (ch4Btn) ch4Btn.addEventListener('click', runCh4Infer);
+
+    // Ch5 微調訓練
+    let simulatedLoss = 4.85;
+    const ch5Btn = document.getElementById('ch5-btn');
+    const ch5LossVal = document.getElementById('ch5-loss-val');
+    const ch5SampleTxt = document.getElementById('ch5-sample-txt');
+
+    if (ch5Btn) {
+      ch5Btn.addEventListener('click', () => {
+        simulatedLoss = Math.max(simulatedLoss * 0.91 - 0.03, 1.12 + Math.random() * 0.05);
+        if (ch5LossVal) ch5LossVal.innerText = simulatedLoss.toFixed(4);
+        if (ch5SampleTxt) ch5SampleTxt.innerText = `抽樣微調問答語料: "<Q>火星的大氣層怎樣？<A>很稀薄"`;
+      });
+    }
+
+    // 初始化
+    runCh1Tokenize();
+  </script>
+</body>
+</html>

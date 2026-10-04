@@ -1,48 +1,6 @@
 'use strict';
-/**
- * tf0 — a tiny, dependency-free, pure Node.js re-implementation of just the
- * slice of the TensorFlow.js API that llm-tf.js needs (dense tensors,
- * reverse-mode autodiff, a handful of ops, and an Adam optimizer).
- *
- * Design:
- *  - Every Tensor is an immutable node in a dynamic computation graph:
- *    `tensor.parents` are the Tensor inputs that produced it, and
- *    `tensor.gradFn(gradOutput) -> [gradParent0, gradParent1, ...]`
- *    computes local gradients given the gradient flowing into this tensor.
- *  - Backward pass = standard topological-sort + reverse-accumulate, which
- *    correctly handles tensors that are reused multiple times in the graph
- *    (e.g. the token embedding matrix, used both for the embedding lookup
- *    and the output projection).
- *  - `tf.tidy` / `tensor.dispose` are no-ops beyond clearing references;
- *    plain V8 garbage collection is relied on for memory management, which
- *    is perfectly fine at the sizes this toy model runs at.
- */
 
-// ---------------------------------------------------------------------------
-// low level helpers
-// ---------------------------------------------------------------------------
-
-function prod(shape) {
-  let p = 1;
-  for (let i = 0; i < shape.length; i++) p *= shape[i];
-  return p;
-}
-
-function stridesFor(shape) {
-  const s = new Array(shape.length);
-  let acc = 1;
-  for (let i = shape.length - 1; i >= 0; i--) {
-    s[i] = acc;
-    acc *= shape[i];
-  }
-  return s;
-}
-
-function sameShape(a, b) {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-  return true;
-}
+const { Tensor, TensorBuffer, prod, stridesFor, sameShape } = require('./tensor');
 
 function broadcastShapes(shapeA, shapeB) {
   const rank = Math.max(shapeA.length, shapeB.length);
@@ -59,9 +17,6 @@ function broadcastShapes(shapeA, shapeB) {
   return { aPad: a, bPad: b, outShape: out };
 }
 
-// Reduce `gradData` (laid out as `fromShape`) down to `toShape` by summing
-// over the dimensions that were broadcast (size-1 dims in `toShape`, or
-// leading dims that don't exist in `toShape` at all).
 function reduceGradTo(gradData, fromShape, toShape) {
   const rank = fromShape.length;
   const tPad = new Array(rank - toShape.length).fill(1).concat(toShape);
@@ -375,9 +330,6 @@ function softmaxBackward(gradOut, outData, shape, axis) {
   return gradIn;
 }
 
-// Batched matmul: a[...batch, M(,K)], b[...batch, K(,N)] with optional
-// transpose flags on the *physical* last two dims of a/b. Handles the plain
-// 2D case too (batch dims = []).
 function matMulForward(aData, aShape, bData, bShape, transposeA, transposeB) {
   const aBatch = aShape.slice(0, -2);
   const bBatch = bShape.slice(0, -2);
@@ -449,220 +401,188 @@ function matMulBackward(gradOut, outShape, aData, aShape, bData, bShape, transpo
   return [dA, dB];
 }
 
-// ---------------------------------------------------------------------------
-// Tensor
-// ---------------------------------------------------------------------------
+// 動態綁定 Tensor 原型方法以避免循環依賴
+Tensor.prototype.toFloat = function() {
+  if (this.dtype === 'float32') return this;
+  const data = Float32Array.from(this.data);
+  return new Tensor(data, this.shape.slice(), 'float32', [this], (g) => [g]);
+};
 
-let _nextId = 1;
-
-class Tensor {
-  constructor(data, shape, dtype, parents, gradFn, isVariable) {
-    this.data = data;
-    this.shape = shape;
-    this.dtype = dtype || 'float32';
-    this.size = prod(shape);
-    this.parents = parents || [];
-    this.gradFn = gradFn || null;
-    this.isVariable = !!isVariable;
-    this.id = _nextId++;
+Tensor.prototype.reshape = function(newShape) {
+  const size = prod(newShape);
+  if (size !== this.size) {
+    throw new Error(`tf0: cannot reshape tensor of size ${this.size} into shape ${JSON.stringify(newShape)}`);
   }
+  const gradFn = (gradOut) => [gradOut];
+  return new Tensor(this.data, newShape.slice(), 'float32', [this], gradFn);
+};
 
-  dataSync() {
-    return this.data;
-  }
+Tensor.prototype.expandDims = function(axis) {
+  const newShape = this.shape.slice();
+  const ax = axis < 0 ? axis + newShape.length + 1 : axis;
+  newShape.splice(ax, 0, 1);
+  return this.reshape(newShape);
+};
 
-  dispose() {
-    this.data = null;
-    this.parents = [];
-    this.gradFn = null;
-  }
+Tensor.prototype.tile = function(reps) {
+  const { data, shape } = tileForward(this.data, this.shape, reps);
+  const gradFn = (gradOut) => [tileBackward(gradOut, this.shape, reps)];
+  return new Tensor(data, shape, 'float32', [this], gradFn);
+};
 
-  toFloat() {
-    if (this.dtype === 'float32') return this;
-    const data = Float32Array.from(this.data);
-    return new Tensor(data, this.shape.slice(), 'float32', [this], (g) => [g]);
-  }
+Tensor.prototype.transpose = function(perm) {
+  const { data, shape } = transposeForward(this.data, this.shape, perm);
+  const invPerm = new Array(perm.length);
+  perm.forEach((p, i) => (invPerm[p] = i));
+  const gradFn = (gradOut) => [transposeForward(gradOut, shape, invPerm).data];
+  return new Tensor(data, shape, 'float32', [this], gradFn);
+};
 
-  reshape(newShape) {
-    const size = prod(newShape);
-    if (size !== this.size) {
-      throw new Error(`tf0: cannot reshape tensor of size ${this.size} into shape ${JSON.stringify(newShape)}`);
+Tensor.prototype.slice = function(begin, size) {
+  const { data, shape } = sliceForward(this.data, this.shape, begin, size);
+  const gradFn = (gradOut) => [sliceBackward(gradOut, this.shape, begin, size)];
+  return new Tensor(data, shape, 'float32', [this], gradFn);
+};
+
+Tensor.prototype.square = function() {
+  const n = this.size;
+  const data = new Float32Array(n);
+  for (let i = 0; i < n; i++) data[i] = this.data[i] * this.data[i];
+  const gradFn = (gradOut) => {
+    const g = new Float32Array(n);
+    for (let i = 0; i < n; i++) g[i] = gradOut[i] * 2 * this.data[i];
+    return [g];
+  };
+  return new Tensor(data, this.shape.slice(), 'float32', [this], gradFn);
+};
+
+Tensor.prototype.sqrt = function() {
+  const n = this.size;
+  const data = new Float32Array(n);
+  for (let i = 0; i < n; i++) data[i] = Math.sqrt(this.data[i]);
+  const gradFn = (gradOut) => {
+    const g = new Float32Array(n);
+    for (let i = 0; i < n; i++) g[i] = gradOut[i] * 0.5 / data[i];
+    return [g];
+  };
+  return new Tensor(data, this.shape.slice(), 'float32', [this], gradFn);
+};
+
+Tensor.prototype.relu = function() {
+  const n = this.size;
+  const data = new Float32Array(n);
+  for (let i = 0; i < n; i++) data[i] = this.data[i] > 0 ? this.data[i] : 0;
+  const gradFn = (gradOut) => {
+    const g = new Float32Array(n);
+    for (let i = 0; i < n; i++) g[i] = this.data[i] > 0 ? gradOut[i] : 0;
+    return [g];
+  };
+  return new Tensor(data, this.shape.slice(), 'float32', [this], gradFn);
+};
+
+Tensor.prototype.mean = function(axis, keepDims) {
+  const { data, shape } = meanForward(this.data, this.shape, axis, keepDims);
+  const gradFn = (gradOut) => [meanBackward(gradOut, this.shape, axis, keepDims)];
+  return new Tensor(data, shape, 'float32', [this], gradFn);
+};
+
+Tensor.prototype.add = function(other) {
+  const bIsTensor = other instanceof Tensor;
+  const bData = bIsTensor ? other.data : new Float32Array([other]);
+  const bShape = bIsTensor ? other.shape : [];
+  const { data, shape } = broadcastBinaryForward(this.data, this.shape, bData, bShape, (x, y) => x + y);
+  const parents = bIsTensor ? [this, other] : [this];
+  const gradFn = (gradOut) => {
+    const gA = reduceGradTo(gradOut, shape, this.shape);
+    if (!bIsTensor) return [gA];
+    const gB = reduceGradTo(gradOut, shape, other.shape);
+    return [gA, gB];
+  };
+  return new Tensor(data, shape, 'float32', parents, gradFn);
+};
+
+Tensor.prototype.div = function(other) {
+  const bIsTensor = other instanceof Tensor;
+  const bData = bIsTensor ? other.data : new Float32Array([other]);
+  const bShape = bIsTensor ? other.shape : [];
+  const { data, shape } = broadcastBinaryForward(this.data, this.shape, bData, bShape, (x, y) => x / y);
+  const parents = bIsTensor ? [this, other] : [this];
+  const gradFn = (gradOut) => {
+    const [gA, gB] = divBackwardFull(gradOut, shape, this.data, this.shape, bData, bShape);
+    return bIsTensor ? [gA, gB] : [gA];
+  };
+  return new Tensor(data, shape, 'float32', parents, gradFn);
+};
+
+Tensor.prototype.matMul = function(other, transposeA, transposeB) {
+  transposeA = !!transposeA;
+  transposeB = !!transposeB;
+  const { data, shape } = matMulForward(this.data, this.shape, other.data, other.shape, transposeA, transposeB);
+  const gradFn = (gradOut) =>
+    matMulBackward(gradOut, shape, this.data, this.shape, other.data, other.shape, transposeA, transposeB);
+  return new Tensor(data, shape, 'float32', [this, other], gradFn);
+};
+
+Tensor.prototype.softmax = function(axis) {
+  axis = axis === undefined ? -1 : axis;
+  const { data, shape } = softmaxForward(this.data, this.shape, axis);
+  const gradFn = (gradOut) => [softmaxBackward(gradOut, data, this.shape, axis)];
+  return new Tensor(data, shape, 'float32', [this], gradFn);
+};
+
+Tensor.prototype.softmaxCrossEntropyWith = function(labels) {
+  const [N, C] = this.shape;
+  const { data: probData } = softmaxForward(this.data, this.shape, -1);
+  const lossData = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    let s = 0;
+    for (let c = 0; c < C; c++) {
+      const p = Math.max(probData[i * C + c], 1e-12);
+      s += labels.data[i * C + c] * Math.log(p);
     }
-    const gradFn = (gradOut) => [gradOut];
-    return new Tensor(this.data, newShape.slice(), 'float32', [this], gradFn);
+    lossData[i] = -s;
   }
-
-  expandDims(axis) {
-    const newShape = this.shape.slice();
-    const ax = axis < 0 ? axis + newShape.length + 1 : axis;
-    newShape.splice(ax, 0, 1);
-    return this.reshape(newShape);
-  }
-
-  tile(reps) {
-    const { data, shape } = tileForward(this.data, this.shape, reps);
-    const gradFn = (gradOut) => [tileBackward(gradOut, this.shape, reps)];
-    return new Tensor(data, shape, 'float32', [this], gradFn);
-  }
-
-  transpose(perm) {
-    const { data, shape } = transposeForward(this.data, this.shape, perm);
-    const invPerm = new Array(perm.length);
-    perm.forEach((p, i) => (invPerm[p] = i));
-    const gradFn = (gradOut) => [transposeForward(gradOut, shape, invPerm).data];
-    return new Tensor(data, shape, 'float32', [this], gradFn);
-  }
-
-  slice(begin, size) {
-    const { data, shape } = sliceForward(this.data, this.shape, begin, size);
-    const gradFn = (gradOut) => [sliceBackward(gradOut, this.shape, begin, size)];
-    return new Tensor(data, shape, 'float32', [this], gradFn);
-  }
-
-  square() {
-    const n = this.size;
-    const data = new Float32Array(n);
-    for (let i = 0; i < n; i++) data[i] = this.data[i] * this.data[i];
-    const gradFn = (gradOut) => {
-      const g = new Float32Array(n);
-      for (let i = 0; i < n; i++) g[i] = gradOut[i] * 2 * this.data[i];
-      return [g];
-    };
-    return new Tensor(data, this.shape.slice(), 'float32', [this], gradFn);
-  }
-
-  sqrt() {
-    const n = this.size;
-    const data = new Float32Array(n);
-    for (let i = 0; i < n; i++) data[i] = Math.sqrt(this.data[i]);
-    const gradFn = (gradOut) => {
-      const g = new Float32Array(n);
-      for (let i = 0; i < n; i++) g[i] = gradOut[i] * 0.5 / data[i];
-      return [g];
-    };
-    return new Tensor(data, this.shape.slice(), 'float32', [this], gradFn);
-  }
-
-  relu() {
-    const n = this.size;
-    const data = new Float32Array(n);
-    for (let i = 0; i < n; i++) data[i] = this.data[i] > 0 ? this.data[i] : 0;
-    const gradFn = (gradOut) => {
-      const g = new Float32Array(n);
-      for (let i = 0; i < n; i++) g[i] = this.data[i] > 0 ? gradOut[i] : 0;
-      return [g];
-    };
-    return new Tensor(data, this.shape.slice(), 'float32', [this], gradFn);
-  }
-
-  mean(axis, keepDims) {
-    const { data, shape } = meanForward(this.data, this.shape, axis, keepDims);
-    const gradFn = (gradOut) => [meanBackward(gradOut, this.shape, axis, keepDims)];
-    return new Tensor(data, shape, 'float32', [this], gradFn);
-  }
-
-  add(other) {
-    const bIsTensor = other instanceof Tensor;
-    const bData = bIsTensor ? other.data : new Float32Array([other]);
-    const bShape = bIsTensor ? other.shape : [];
-    const { data, shape } = broadcastBinaryForward(this.data, this.shape, bData, bShape, (x, y) => x + y);
-    const parents = bIsTensor ? [this, other] : [this];
-    const gradFn = (gradOut) => {
-      const gA = reduceGradTo(gradOut, shape, this.shape);
-      if (!bIsTensor) return [gA];
-      const gB = reduceGradTo(gradOut, shape, other.shape);
-      return [gA, gB];
-    };
-    return new Tensor(data, shape, 'float32', parents, gradFn);
-  }
-
-  div(other) {
-    const bIsTensor = other instanceof Tensor;
-    const bData = bIsTensor ? other.data : new Float32Array([other]);
-    const bShape = bIsTensor ? other.shape : [];
-    const { data, shape } = broadcastBinaryForward(this.data, this.shape, bData, bShape, (x, y) => x / y);
-    const parents = bIsTensor ? [this, other] : [this];
-    const gradFn = (gradOut) => {
-      const [gA, gB] = divBackwardFull(gradOut, shape, this.data, this.shape, bData, bShape);
-      return bIsTensor ? [gA, gB] : [gA];
-    };
-    return new Tensor(data, shape, 'float32', parents, gradFn);
-  }
-
-  matMul(other, transposeA, transposeB) {
-    transposeA = !!transposeA;
-    transposeB = !!transposeB;
-    const { data, shape } = matMulForward(this.data, this.shape, other.data, other.shape, transposeA, transposeB);
-    const gradFn = (gradOut) =>
-      matMulBackward(gradOut, shape, this.data, this.shape, other.data, other.shape, transposeA, transposeB);
-    return new Tensor(data, shape, 'float32', [this, other], gradFn);
-  }
-
-  softmax(axis) {
-    axis = axis === undefined ? -1 : axis;
-    const { data, shape } = softmaxForward(this.data, this.shape, axis);
-    const gradFn = (gradOut) => [softmaxBackward(gradOut, data, this.shape, axis)];
-    return new Tensor(data, shape, 'float32', [this], gradFn);
-  }
-
-  softmaxCrossEntropyWith(labels) {
-    const [N, C] = this.shape;
-    const { data: probData } = softmaxForward(this.data, this.shape, -1);
-    const lossData = new Float32Array(N);
+  const gradFn = (gradOut) => {
+    const gLogits = new Float32Array(N * C);
     for (let i = 0; i < N; i++) {
-      let s = 0;
+      const go = gradOut[i];
       for (let c = 0; c < C; c++) {
-        const p = Math.max(probData[i * C + c], 1e-12);
-        s += labels.data[i * C + c] * Math.log(p);
+        gLogits[i * C + c] = go * (probData[i * C + c] - labels.data[i * C + c]);
       }
-      lossData[i] = -s;
     }
-    const gradFn = (gradOut) => {
-      const gLogits = new Float32Array(N * C);
-      for (let i = 0; i < N; i++) {
-        const go = gradOut[i];
-        for (let c = 0; c < C; c++) {
-          gLogits[i * C + c] = go * (probData[i * C + c] - labels.data[i * C + c]);
-        }
-      }
-      return [gLogits, null];
-    };
-    return new Tensor(lossData, [N], 'float32', [this, labels], gradFn);
-  }
+    return [gLogits, null];
+  };
+  return new Tensor(lossData, [N], 'float32', [this, labels], gradFn);
+};
 
-  multinomial(numSamples) {
-    const [rows, vocab] = this.shape;
-    const out = new Int32Array(rows * numSamples);
-    for (let r = 0; r < rows; r++) {
-      let maxV = -Infinity;
-      for (let c = 0; c < vocab; c++) maxV = Math.max(maxV, this.data[r * vocab + c]);
-      const exps = new Float64Array(vocab);
-      let sum = 0;
+Tensor.prototype.multinomial = function(numSamples) {
+  const [rows, vocab] = this.shape;
+  const out = new Int32Array(rows * numSamples);
+  for (let r = 0; r < rows; r++) {
+    let maxV = -Infinity;
+    for (let c = 0; c < vocab; c++) maxV = Math.max(maxV, this.data[r * vocab + c]);
+    const exps = new Float64Array(vocab);
+    let sum = 0;
+    for (let c = 0; c < vocab; c++) {
+      exps[c] = Math.exp(this.data[r * vocab + c] - maxV);
+      sum += exps[c];
+    }
+    for (let c = 0; c < vocab; c++) exps[c] /= sum;
+    for (let s = 0; s < numSamples; s++) {
+      const rnd = Math.random();
+      let acc = 0, chosen = vocab - 1;
       for (let c = 0; c < vocab; c++) {
-        exps[c] = Math.exp(this.data[r * vocab + c] - maxV);
-        sum += exps[c];
-      }
-      for (let c = 0; c < vocab; c++) exps[c] /= sum;
-      for (let s = 0; s < numSamples; s++) {
-        const rnd = Math.random();
-        let acc = 0, chosen = vocab - 1;
-        for (let c = 0; c < vocab; c++) {
-          acc += exps[c];
-          if (rnd <= acc) {
-            chosen = c;
-            break;
-          }
+        acc += exps[c];
+        if (rnd <= acc) {
+          chosen = c;
+          break;
         }
-        out[r * numSamples + s] = chosen;
       }
+      out[r * numSamples + s] = chosen;
     }
-    return new Tensor(out, [rows, numSamples], 'int32');
   }
-}
-
-// ---------------------------------------------------------------------------
-// backward pass driver
-// ---------------------------------------------------------------------------
+  return new Tensor(out, [rows, numSamples], 'int32');
+};
 
 function computeGrads(root, varList) {
   const order = [];
@@ -701,131 +621,7 @@ function computeGrads(root, varList) {
   return varList.map((v) => gradMap.get(v.id) || new Float32Array(v.size));
 }
 
-// ---------------------------------------------------------------------------
-// TensorBuffer
-// ---------------------------------------------------------------------------
-
-class TensorBuffer {
-  constructor(shape, dtype) {
-    this.shape = shape.slice();
-    this.dtype = dtype || 'float32';
-    const size = prod(shape);
-    this.data = this.dtype === 'int32' ? new Int32Array(size) : new Float32Array(size);
-    this.strides = stridesFor(shape);
-  }
-
-  set(value, ...idx) {
-    let flat = 0;
-    for (let d = 0; d < idx.length; d++) flat += idx[d] * this.strides[d];
-    this.data[flat] = value;
-  }
-
-  toTensor() {
-    return new Tensor(this.data, this.shape.slice(), this.dtype);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// public tf namespace
-// ---------------------------------------------------------------------------
-
-const tf = {};
-
-tf.Tensor = Tensor;
-
-tf.tensor1d = (data, dtype) => {
-  dtype = dtype || 'float32';
-  const arr = dtype === 'int32' ? Int32Array.from(data) : Float32Array.from(data);
-  return new Tensor(arr, [arr.length], dtype);
+module.exports = {
+  computeGrads,
+  oneHotForward
 };
-
-tf.tensor2d = (data, shape, dtype) => {
-  dtype = dtype || 'float32';
-  const arr = dtype === 'int32' ? Int32Array.from(data) : Float32Array.from(data);
-  return new Tensor(arr, shape.slice(), dtype);
-};
-
-tf.variable = (t) => new Tensor(t.data, t.shape.slice(), 'float32', [], null, true);
-
-tf.randomNormal = (shape, mean, stddev, dtype) => {
-  mean = mean === undefined ? 0 : mean;
-  stddev = stddev === undefined ? 1 : stddev;
-  const size = prod(shape);
-  const data = new Float32Array(size);
-  for (let i = 0; i < size; i += 2) {
-    let u = 0, v = 0;
-    while (u === 0) u = Math.random();
-    while (v === 0) v = Math.random();
-    const mag = Math.sqrt(-2 * Math.log(u));
-    data[i] = mean + stddev * mag * Math.cos(2 * Math.PI * v);
-    if (i + 1 < size) data[i + 1] = mean + stddev * mag * Math.sin(2 * Math.PI * v);
-  }
-  return new Tensor(data, shape.slice(), dtype || 'float32');
-};
-
-tf.buffer = (shape, dtype) => new TensorBuffer(shape, dtype);
-
-tf.range = (start, stop, step, dtype) => {
-  step = step === undefined ? 1 : step;
-  dtype = dtype || 'float32';
-  const vals = [];
-  for (let v = start; v < stop; v += step) vals.push(v);
-  const arr = dtype === 'int32' ? Int32Array.from(vals) : Float32Array.from(vals);
-  return new Tensor(arr, [vals.length], dtype);
-};
-
-tf.oneHot = (indices, depth) => {
-  const { data, shape } = oneHotForward(indices.data, indices.shape, depth);
-  return new Tensor(data, shape, 'float32');
-};
-
-tf.add = (a, b) => a.add(b);
-tf.matMul = (a, b, transposeA, transposeB) => a.matMul(b, transposeA, transposeB);
-tf.softmax = (x, axis) => x.softmax(axis);
-tf.multinomial = (logits, numSamples) => logits.multinomial(numSamples);
-tf.getBackend = () => 'tf0-pure-js';
-tf.tidy = (fn) => fn();
-
-tf.losses = {
-  softmaxCrossEntropy: (labels, logits) => logits.softmaxCrossEntropyWith(labels),
-};
-
-tf.train = {
-  adam: (learningRate, beta1, beta2, epsilon) => {
-    learningRate = learningRate === undefined ? 0.001 : learningRate;
-    beta1 = beta1 === undefined ? 0.9 : beta1;
-    beta2 = beta2 === undefined ? 0.999 : beta2;
-    epsilon = epsilon === undefined ? 1e-8 : epsilon;
-    const state = new Map();
-    let t = 0;
-    return {
-      minimize(lossFn, returnCost, varList) {
-        const loss = lossFn();
-        const grads = computeGrads(loss, varList);
-        t++;
-        const biasCorrected = learningRate * Math.sqrt(1 - Math.pow(beta2, t)) / (1 - Math.pow(beta1, t));
-        for (let i = 0; i < varList.length; i++) {
-          const v = varList[i];
-          let s = state.get(v.id);
-          if (!s) {
-            s = { m: new Float32Array(v.size), v: new Float32Array(v.size) };
-            state.set(v.id, s);
-          }
-          const g = grads[i];
-          for (let j = 0; j < v.size; j++) {
-            s.m[j] = beta1 * s.m[j] + (1 - beta1) * g[j];
-            s.v[j] = beta2 * s.v[j] + (1 - beta2) * g[j] * g[j];
-            v.data[j] -= biasCorrected * s.m[j] / (Math.sqrt(s.v[j]) + epsilon);
-          }
-        }
-        if (!returnCost) {
-          loss.dispose();
-          return null;
-        }
-        return loss;
-      },
-    };
-  },
-};
-
-module.exports = tf;

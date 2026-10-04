@@ -87,6 +87,15 @@ class TinyTransformer {
     return x.reshape([batchSize * time, this.dim]).matMul(this.tokenEmbedding, false, true);
   }
 
+  saveWeights(filePath) {
+    tf.saveWeights(this.variables, filePath);
+  }
+
+  loadWeights(filePath) {
+    tf.loadWeights(this.variables, filePath);
+  }
+
+
   dispose() {
     for (const tensor of this.variables) tensor.dispose();
     this.mask.dispose();
@@ -137,6 +146,41 @@ function generate(model, prompt, encode, decode, seqLen, length) {
   return decode(tokens);
 }
 
+function parseArgs() {
+  const options = {
+    pretrainFile: path.join(__dirname, '../corpus/pretrain.txt'),
+    finetuneFile: path.join(__dirname, '../corpus/finetune.txt'),
+    pretrainIters: 500,
+    finetuneIters: 500,
+    seq_len: 16,
+    batch_size: 16,
+    gen_len: 100,
+    prompt: null,
+    savePath: null,
+    loadPath: null
+  };
+  const args = process.argv.slice(2);
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === '--pretrain' || arg === '-p') options.pretrainFile = args[++index];
+    else if (arg === '--finetune' || arg === '-f') options.finetuneFile = args[++index];
+    else if (arg === '--pretrain_iters') options.pretrainIters = Number.parseInt(args[++index], 10);
+    else if (arg === '--finetune_iters') options.finetuneIters = Number.parseInt(args[++index], 10);
+    else if (arg === '--iters') {
+      const iters = Number.parseInt(args[++index], 10);
+      options.pretrainIters = iters;
+      options.finetuneIters = iters;
+    }
+    else if (arg === '--seq_len') options.seq_len = Number.parseInt(args[++index], 10);
+    else if (arg === '--batch_size') options.batch_size = Number.parseInt(args[++index], 10);
+    else if (arg === '--gen_len') options.gen_len = Number.parseInt(args[++index], 10);
+    else if (arg === '--prompt') options.prompt = args[++index];
+    else if (arg === '--save') options.savePath = args[++index];
+    else if (arg === '--load') options.loadPath = args[++index];
+  }
+  return options;
+}
+
 function main() {
   const options = parseArgs();
 
@@ -160,8 +204,11 @@ function main() {
   console.log(`詞表大小: ${chars.length}`);
   console.log(`模型參數總數: ${(model.variables.reduce((sum, tensor) => sum + tensor.size, 0) / 1e3).toFixed(1)} K`);
 
-  // 預訓練階段 (若 pretrainText 存在且 pretrainIters > 0)
-  if (pretrainText && options.pretrainIters > 0) {
+  // 若指定 --load 參數，則先載入權重
+  if (options.loadPath) {
+    model.loadWeights(options.loadPath);
+  } else if (pretrainText && options.pretrainIters > 0) {
+    // 否則如果 pretrainText 存在且 pretrainIters > 0 進行預訓練
     console.log(`\n=== 階段 1: 預訓練 (${options.pretrainFile}) ===`);
     const pretrainData = Int32Array.from(Array.from(pretrainText, (c) => stoi[c]));
     train(model, pretrainData, options.pretrainIters, options.batch_size, options.seq_len, 0.003, '預訓練');
@@ -172,15 +219,23 @@ function main() {
   }
 
   // 微調階段
-  console.log(`\n=== 階段 2: 微調 (Finetune: ${options.finetuneFile}) ===`);
-  const finetuneData = Int32Array.from(Array.from(finetuneText, (c) => stoi[c]));
-  train(model, finetuneData, options.finetuneIters, options.batch_size, options.seq_len, 0.001, '微調');
+  if (options.finetuneIters > 0) {
+    console.log(`\n=== 階段 2: 微調 (Finetune: ${options.finetuneFile}) ===`);
+    const finetuneData = Int32Array.from(Array.from(finetuneText, (c) => stoi[c]));
+    train(model, finetuneData, options.finetuneIters, options.batch_size, options.seq_len, 0.001, '微調');
+  }
 
   const testPrompt = options.prompt || "<Q>火星的大氣層怎樣？";
-  console.log(`\n=== 微調後生成結果 (Prompt: '${testPrompt}') ===`);
+  console.log(`\n=== 最終生成結果 (Prompt: '${testPrompt}') ===`);
   console.log(generate(model, testPrompt, encode, decode, options.seq_len, options.gen_len));
+
+  // 若指定 --save 參數，則儲存權重
+  if (options.savePath) {
+    model.saveWeights(options.savePath);
+  }
 
   model.dispose();
 }
 
 main();
+

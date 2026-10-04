@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>shellbook</title>
+  <link rel="stylesheet" href="/vendor/xterm/css/xterm.css">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <button id="back-btn" class="btn" data-testid="back-btn" type="button" disabled>← 返回</button>
+    <span id="crumb" class="crumb" data-testid="crumb"></span>
+    <button id="folder-btn" class="btn folder-btn" data-testid="folder-btn" type="button" title="選擇資料夾">
+      <span id="folder-name">選擇資料夾</span>
+    </button>
+  </header>
+
+  <main id="doc-scroll" class="doc-scroll">
+    <article id="doc" class="doc" data-testid="doc" aria-live="polite"></article>
+  </main>
+
+  <div id="resizer" class="resizer" role="separator" aria-orientation="horizontal" aria-label="調整終端機高度"></div>
+
+  <section class="term-pane" aria-label="終端機">
+    <div class="term-bar">
+      <span id="term-status" class="term-status" data-testid="term-status" data-state="connecting">連線中…</span>
+    </div>
+    <div id="terminal" class="terminal" data-testid="terminal"></div>
+  </section>
+
+  <dialog id="folder-dialog" class="dialog" data-testid="folder-dialog">
+    <form method="dialog" class="dialog-inner" id="folder-form">
+      <h2>選擇資料夾</h2>
+      <div class="path-row">
+        <input id="folder-path" data-testid="folder-path-input" type="text" spellcheck="false" aria-label="資料夾路徑">
+        <button type="button" id="folder-go" class="btn">前往</button>
+      </div>
+      <p id="folder-hint" class="hint"></p>
+      <ul id="folder-list" class="folder-list" data-testid="folder-list"></ul>
+      <div class="dialog-actions">
+        <button type="button" id="folder-cancel" class="btn">取消</button>
+        <button type="button" id="folder-select" class="btn primary" data-testid="folder-select">開啟此資料夾</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/vendor/xterm/lib/xterm.js"></script>
+  <script src="/vendor/addon-fit/lib/addon-fit.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
