@@ -10,6 +10,19 @@ rm -rf /tmp/flowboard && cp -r "$FLOW_BOOK/examples/flowboard" /tmp/flowboard &&
 ls
 ```
 
+預期輸出（`FLOW_BOOK` 是你執行時所在的書目錄，位置可能不同）：
+
+```text
+FLOW_BOOK=/Users/Shared/ccc/115a/muse-web/shellbook/books/flow-se
+Dockerfile
+README.md
+backend
+compose.yml
+docs
+e2e
+frontend
+```
+
 ## 需求：用 Issue 記錄
 
 需求不是口頭約定，而是一張可追蹤、可討論、可關閉的 Issue：
@@ -25,7 +38,13 @@ ls
 - [ ] DELETE 可刪除任務
 - [ ] E2E 覆蓋以上三條路徑
 EOF
-)" || echo "gh 未登入：實務上在 GitHub 上用這行指令建立需求 Issue"
+)" || echo "（略過：需 gh 已登入且在你的 GitHub repo 內執行）"
+```
+
+預期輸出（`GH_OK=yes` 且在你的 GitHub repo 內，會回傳 Issue 網址；否則顯示略過）：
+
+```text
+https://github.com/<你的帳號>/<repo>/issues/1
 ```
 
 ## 設計：用 ADR 留下決策
@@ -36,6 +55,17 @@ ADR（Architecture Decision Record）記錄「為什麼這樣選」，新人三�
 cat docs/ADR-001-stack.md
 ```
 
+預期輸出：
+
+```text
+# ADR-001：技術選型
+
+日期：2026-10-05 狀態：已接受
+
+## 背景
+...（技術選型表格）
+```
+
 ## 設計：API 契約先行
 
 前後端並行開發的關鍵：先定契約，各自對著契約實作與測試：
@@ -44,14 +74,47 @@ cat docs/ADR-001-stack.md
 cat docs/api.md
 ```
 
+預期輸出：
+
+```text
+# flowboard API（v1）
+
+Base URL：`http://localhost:3001`
+
+## 健康檢查
+
+`GET /api/health` → `{"status":"ok"}`
+...（任務端點說明）
+```
+
 驗證文件與實作一致（文件寫的端點，程式碼裡都要有）：
 
 ```shell
 grep -o "GET /[a-z/]*\|POST /[a-z/]*\|PATCH /[a-z/:]*\|DELETE /[a-z/:]*" docs/api.md | sort -u
 ```
 
+預期輸出：
+
+```text
+DELETE /api/tasks/:id
+GET /
+GET /api/health
+GET /api/tasks
+GET /app
+GET /style
+PATCH /api/tasks/:id
+POST /api/tasks
+```
+
 ```shell
 grep -o '"/api/[a-z]*"' backend/src/main.rs | sort -u
+```
+
+預期輸出（文件列的 API，程式碼裡都有實作）：
+
+```text
+"/api/health"
+"/api/tasks"
 ```
 
 ## 驗收標準進版控
@@ -62,10 +125,29 @@ grep -o '"/api/[a-z]*"' backend/src/main.rs | sort -u
 ls e2e/tests/ && head -12 e2e/tests/board.spec.js
 ```
 
+預期輸出：
+
+```text
+board.spec.js
+const { test, expect } = require("@playwright/test");
+
+test.beforeEach(async ({ page }) => {
+  await page.goto("/");
+  // 每個測試前清空：把既有任務逐一刪除
+  ...
+```
+
 ## 提交分析產物
 
 ```shell
 git add -A && git commit -m "docs: 分析與設計（ADR、API 契約、驗收標準）" 2>&1 | head -2
+```
+
+預期輸出（hash 每次不同）：
+
+```text
+[main (root-commit) xxxxxxx] docs: 分析與設計（ADR、API 契約、驗收標準）
+ 24 files changed, 854 insertions(+)
 ```
 
 ## 重點回顧

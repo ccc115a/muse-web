@@ -9,12 +9,41 @@
 cd /tmp/flowboard/frontend && cat package.json
 ```
 
+預期輸出：
+
+```text
+{
+  "name": "flowboard-frontend",
+  "version": "0.1.0",
+  "description": "flowboard 任務看板前端",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node server.mjs",
+    "test": "node --test test/lib.test.mjs",
+    "preview": "npm run build && npm start"
+  }
+}
+```
+
 ## npm run build：產出 dist
 
 本專案不需要打包工具，build 腳本把 `public/` 複製到 `dist/`（變大後可換成 vite，不用改流程）：
 
 ```shell
 npm run build && ls dist/
+```
+
+預期輸出：
+
+```text
+> flowboard-frontend@0.1.0 build
+> node scripts/build.mjs
+
+build 完成：/tmp/flowboard/frontend/dist
+app.js
+index.html
+style.css
 ```
 
 ## npm test：node 內建測試
@@ -25,10 +54,31 @@ npm run build && ls dist/
 cat lib.js && npm test 2>&1 | grep -E "pass|fail"
 ```
 
+預期輸出：
+
+```text
+// 純函式（無 DOM 依賴），可被 node --test 直接測試
+export function pendingCount(tasks) {
+  return tasks.filter((t) => !t.done).length;
+}
+...
+ℹ pass 2
+ℹ fail 0
+```
+
 ## 看前端怎麼呼叫後端
 
 ```shell
 grep -n "fetch" public/app.js
+```
+
+預期輸出（前端只透過這 4 處呼叫後端 API）：
+
+```text
+9:  const res = await fetch(API);
+22:      await fetch(`${API}/${t.id}`, {
+37:      await fetch(`${API}/${t.id}`, { method: "DELETE" });
+52:  await fetch(API, {
 ```
 
 ## 前後端聯調：後端 serve 剛建好的 dist
@@ -39,8 +89,26 @@ Rust 後端同時是靜態檔伺服器（`FRONTEND_DIR` 指定 dist），先建�
 cd ../backend && cargo build 2>&1 | tail -1
 ```
 
+預期輸出：
+
+```text
+Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.46s
+```
+
 ```shell
 FRONTEND_DIR=../frontend/dist DATA_FILE=/tmp/fb-tasks.json ./target/debug/flowboard & sleep 1 && curl -s http://localhost:3001/ | head -c 150 && echo
+```
+
+預期輸出（後端 serve 的正是剛建好的前端頁面）：
+
+```text
+flowboard listening on 0.0.0.0:3001
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <ti
 ```
 
 瀏覽器打開 http://localhost:3001 即可操作（新增任務、勾選、刪除都會打到 Rust API）。
@@ -49,10 +117,27 @@ FRONTEND_DIR=../frontend/dist DATA_FILE=/tmp/fb-tasks.json ./target/debug/flowbo
 curl -s -X POST http://localhost:3001/api/tasks -d '{"title":"從前端來的任務"}' && echo && kill %1 2>/dev/null; rm -f /tmp/fb-tasks.json; echo "server 已停止"
 ```
 
+預期輸出：
+
+```text
+{"id":1,"title":"從前端來的任務","done":false}
+server 已停止
+```
+
 ## npm start：純前端預覽（無後端時切版用）
 
 ```shell
 cd ../frontend && timeout 3 npm start || echo "（預覽 server 已停止，這是正常的）"
+```
+
+預期輸出（`timeout 3` 時間到砍掉 server，exit 124 是正常的）：
+
+```text
+> flowboard-frontend@0.1.0 start
+> node server.mjs
+
+frontend preview: http://localhost:3000
+（預覽 server 已停止，這是正常的）
 ```
 
 ## 重點回顧

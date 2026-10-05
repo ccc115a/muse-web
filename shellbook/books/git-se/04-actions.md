@@ -18,6 +18,8 @@ cd /tmp/demo-app
 mkdir -p .github/workflows
 ```
 
+預期輸出：無輸出（建立目錄）。
+
 ## 寫一個 CI workflow
 
 每次 push 或開 PR 時，跑檢查。用 heredoc 直接寫出真實檔案：
@@ -45,6 +47,8 @@ jobs:
 EOF
 ```
 
+預期輸出：無輸出（寫出 `.github/workflows/ci.yml`）。
+
 關鍵概念：
 
 - `on:`：觸發時機（push、pull_request、schedule…）
@@ -57,6 +61,18 @@ EOF
 git diff --stat && cat .github/workflows/ci.yml
 ```
 
+預期輸出（新檔案尚未 commit，`diff --stat` 無輸出，接著印出檔案內容）：
+
+```text
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+...
+```
+
 ## 推上去觸發 CI
 
 在真實 GitHub 上，這次 push 會立刻觸發 workflow；本地 bare 遠端只收不跑：
@@ -65,15 +81,34 @@ git diff --stat && cat .github/workflows/ci.yml
 git switch main 2>/dev/null; git add .github && git commit -m "ci: add CI workflow" && git push origin main
 ```
 
+預期輸出：
+
+```text
+[main xxxxxxx] ci: add CI workflow
+ 1 file changed, 19 insertions(+)
+ create mode 100644 .github/workflows/ci.yml
+To /tmp/demo-remote.git
+   xxxxxxx..xxxxxxx  main -> main
+```
+
 ## 用 gh 觀察執行狀態
 
 ```shell
-[ "$GH_OK" = yes ] && gh run list --limit 5 || echo "（略過：gh 未登入。真實 GitHub 上這行會列出 CI 執行紀錄）"
+[ "$GH_OK" = yes ] && gh run list --limit 5 || echo "（略過：需 gh 已登入且有 CI 執行紀錄）"
+```
+
+預期輸出（有 push 觸發過 CI 才看得到）：
+
+```text
+STATUS  TITLE  WORKFLOW  BRANCH  EVENT  ID  ELAPSED  AGE
+completed  success  ci  CI  main  push  37254322568  9s  ...
 ```
 
 ```shell
 [ "$GH_OK" = yes ] && gh run watch || echo "（略過：需有執行中的 run）"
 ```
+
+預期輸出：`gh run watch` 要帶 run ID（例如 `gh run watch 37254322568`），不帶會直接顯示略過；有執行中的 run 時會即時跟隨進度，跑完自動結束。
 
 查看失敗 log（除錯必備）：
 
@@ -81,13 +116,17 @@ git switch main 2>/dev/null; git add .github && git commit -m "ci: add CI workfl
 [ "$GH_OK" = yes ] && gh run view --log-failed || echo "（略過：需有失敗的 run）"
 ```
 
+預期輸出：同上要帶 run ID（例如 `gh run view 37254322568 --log-failed` 只印失敗步驟的 log）；ID 不存在或無失敗時顯示略過。
+
 ## 常見模式：Secrets
 
 需要 secrets（如 API key）時，先在 repo 設定，再於 workflow 中引用：
 
 ```shell
-[ "$GH_OK" = yes ] && gh secret set API_KEY --body "demo-value" || echo "（略過：gh 未登入）"
+[ "$GH_OK" = yes ] && gh secret set API_KEY --body "demo-value" || echo "（略過：需 gh 已登入且在你的 GitHub repo 內執行）"
 ```
+
+預期輸出：無輸出（`--body` 直接給值，不會互動式提問；成功就靜靜設好）。
 
 ```yaml
 # workflow 中引用 secret（示意）

@@ -16,29 +16,11 @@ Docker 在軟體工程中解決的核心問題是「**在我機器上可以跑**
 
 ## 章節
 
+- [第零章：環境設定](00-env-setting.md) ← 先執行這章
 - [第一章：容器基礎](01-basics.md)
 - [第二章：寫 Dockerfile、建置 image](02-image.md)
 - [第三章：Volume 與 Network](03-volumes-networks.md)
 - [第四章：Docker Compose 多容器編排](04-compose.md)
 - [第五章：完整專案容器化實例](05-project-demo.md)
-
-## 環境檢查（先執行這些）
-
-確認 Docker 已安裝且 daemon 在跑，結果存進 `DOCKER_OK` 變數，後面章節都會用到：
-
-```shell
-if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
-  export DOCKER_OK=yes
-else
-  export DOCKER_OK=no
-fi
-echo "DOCKER_OK=$DOCKER_OK"
-```
-
-如果 daemon 沒跑，先啟動（macOS 用 Docker Desktop）：
-
-```shell
-[ "$DOCKER_OK" = no ] && open -a Docker && echo "請等 Docker Desktop 啟動後再執行一次上面的檢查" || echo "Docker 已就緒"
-```
 
 [← 回到 shellbook 首頁](../../README.md)

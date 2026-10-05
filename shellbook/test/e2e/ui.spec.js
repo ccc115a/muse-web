@@ -1,4 +1,4 @@
-// Browser e2e (Playwright). Runs against ./examples served by playwright.config.js.
+// Browser e2e (Playwright). Runs against ./books/shellbook-examples served by playwright.config.js.
 const { test, expect } = require('@playwright/test');
 const path = require('path');
 
@@ -83,7 +83,7 @@ test('blocks and typed commands share one continuous shell', async ({ page }) =>
   await typeInTerminal(page, 'echo typed-sees-$GREETING');
   await expect(term(page)).toContainText('typed-sees-你好');
   await blocks.nth(2).getByRole('button', { name: '執行' }).click(); // echo "$GREETING, ..."
-  await expect(term(page)).toContainText('你好, examples');
+  await expect(term(page)).toContainText('你好, shellbook-examples');
 });
 
 test('shell state survives navigating between documents', async ({ page }) => {
@@ -134,7 +134,7 @@ test('the terminal reconnects to the same shell after the websocket drops', asyn
 });
 
 test('folder dialog: browse, pick another folder, doc changes and the shell moves there', async ({ page }) => {
-  const sub = path.resolve(__dirname, '..', '..', 'examples', 'sub');
+  const sub = path.resolve(__dirname, '..', '..', 'books', 'shellbook-examples', 'sub');
   await page.getByTestId('folder-btn').click();
   await expect(page.getByTestId('folder-dialog')).toBeVisible();
   await page.getByTestId('folder-path-input').fill(sub);

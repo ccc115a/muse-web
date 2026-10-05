@@ -10,7 +10,7 @@
 ## 使用
 
     npm install
-    npm start                         # 範例文件 ./examples → http://127.0.0.1:3000
+    npm start                         # 書架 ./books（自己選一本）→ http://127.0.0.1:3000
     node bin/shellbook.js <資料夾> [--port 3000] [--host 127.0.0.1]
 
 ## 測試

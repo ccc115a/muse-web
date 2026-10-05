@@ -9,6 +9,20 @@
 cd /tmp/flowboard && cat Dockerfile
 ```
 
+預期輸出：
+
+```text
+# 多階段建置：Rust 後端 + Node 前端 → 單一執行 image
+# NOTE：第一次 build 要下載 rust/node  base image，會花幾分鐘；之後都用快取。
+FROM rust:1-alpine AS backend
+...
+FROM node:20-alpine AS frontend
+...
+FROM alpine:3.20
+...
+CMD ["./flowboard"]
+```
+
 ## 看懂三個階段
 
 1. `backend`：Rust image 內 `cargo build --release`，產出 Linux 版執行檔
@@ -21,22 +35,59 @@ cd /tmp/flowboard && cat Dockerfile
 [ "$DOCKER_OK" = yes ] && docker build -t flowboard:0.1.0 . || echo "（略過：Docker 未就緒）"
 ```
 
+預期輸出（最後幾行；第一次會下載 base image 花幾分鐘）：
+
+```text
+#19 naming to docker.io/library/flowboard:0.1.0 done
+#19 unpacking to docker.io/library/flowboard:0.1.0 0.4s done
+#19 DONE 4.0s
+```
+
 ## 跑起來驗證
 
 ```shell
 [ "$DOCKER_OK" = yes ] && docker rm -f flowboard >/dev/null 2>&1; docker run -d --name flowboard -p 3001:3001 flowboard:0.1.0 && sleep 3 && curl -s http://localhost:3001/api/health && echo || echo "（略過）"
 ```
 
+預期輸出（一長串 container id 後接健康檢查）：
+
+```text
+a1b2c3d4e5f6...（container id）
+{"status":"ok"}
+```
+
 ```shell
 curl -s http://localhost:3001/ | head -c 100 && echo
+```
+
+預期輸出（容器裡的前端頁面）：
+
+```text
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset
 ```
 
 ```shell
 curl -s -X POST http://localhost:3001/api/tasks -d '{"title":"容器裡的任務"}' && echo
 ```
 
+預期輸出：
+
+```text
+{"id":1,"title":"容器裡的任務","done":false}
+```
+
 ```shell
 docker rm -f flowboard && docker images flowboard --format '{{.Repository}}:{{.Tag}} {{.Size}}'
+```
+
+預期輸出（alpine 最終 image 不到 20MB）：
+
+```text
+flowboard
+flowboard:0.1.0 14.7MB
 ```
 
 ## Compose：一鍵啟動 + 資料持久化
@@ -47,8 +98,34 @@ docker rm -f flowboard && docker images flowboard --format '{{.Repository}}:{{.T
 cat compose.yml
 ```
 
+預期輸出：
+
+```text
+services:
+  app:
+    build: .
+    image: flowboard:dev
+    ports:
+      - "3001:3001"
+    environment:
+      - APP_VERSION=${APP_VERSION:-dev}
+    volumes:
+      - flowboard-data:/app/data
+
+volumes:
+  flowboard-data:
+```
+
 ```shell
 [ "$DOCKER_OK" = yes ] && APP_VERSION=0.1.0 docker compose up -d && sleep 3 && curl -s http://localhost:3001/api/health && echo || echo "（略過）"
+```
+
+預期輸出：
+
+```text
+...
+Container flowboard-app-1 Started
+{"status":"ok"}
 ```
 
 驗證 volume：寫入任務後重建容器，資料還在：
@@ -61,16 +138,46 @@ curl -s -X POST http://localhost:3001/api/tasks -d '{"title":"重啟後還在嗎
 docker compose down && docker volume ls --filter name=flowboard
 ```
 
+預期輸出（`down` 預設保留 volume，資料還在）：
+
+```text
+...
+DRIVER    VOLUME NAME
+local     flowboard_flowboard-data
+```
+
 ## CI：把整條流水線交給 GitHub Actions
 
 ```shell
 cat .github/workflows/ci.yml
 ```
 
+預期輸出（開頭；四個 job 用 `needs` 串起來）：
+
+```text
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  backend:
+  ...
+```
+
 四個 job 對應本書的章節：backend（第三章）→ frontend（第四章）→ e2e（第五章）→ image（本章），前一個不過、後一個不跑：
 
 ```shell
-[ "$GH_OK" = yes ] && gh run list --limit 3 || echo "（略過：gh 未登入。push 到 GitHub 後，這裡會列出 CI 執行紀錄）"
+[ "$GH_OK" = yes ] && gh run list --limit 3 || echo "（略過：需 gh 已登入且 push 到 GitHub 觸發 CI 後才有紀錄）"
+```
+
+預期輸出（有 push 觸發過 CI 才看得到；欄位：狀態、結果、名稱、分支、時間）：
+
+```text
+STATUS  TITLE  WORKFLOW  BRANCH  EVENT  ID  ELAPSED  AGE
+completed  success  ci  CI  main  push  37254322568  9s  ...
 ```
 
 ## 重點回顧

@@ -4,7 +4,7 @@
   "description": "Markdown reader with runnable shell blocks and a live terminal",
   "main": "src/server.js",
   "scripts": {
-    "start": "node bin/shellbook.js examples",
+    "start": "node bin/shellbook.js books",
     "test": "node --test --test-reporter=spec --test-concurrency=1 \"test/unit/*.test.js\" \"test/e2e/protocol.test.js\" \"test/e2e/frontend-jsdom.test.js\"",
     "test:unit": "node --test \"test/unit/*.test.js\"",
     "test:protocol": "node --test \"test/e2e/protocol.test.js\"",

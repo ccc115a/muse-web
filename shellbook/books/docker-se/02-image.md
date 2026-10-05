@@ -10,6 +10,8 @@ export DOCKER_OK=$(command -v docker >/dev/null && docker info >/dev/null 2>&1 &
 cd /tmp/demo-docker
 ```
 
+預期輸出：無輸出（切到工作目錄）。
+
 ## 寫一個最小的 Node.js 應用
 
 ```shell
@@ -22,8 +24,17 @@ http.createServer((req, res) => {
 EOF
 ```
 
+預期輸出：無輸出（寫出 `server.js`）。
+
 ```shell
 node server.js & sleep 1 && curl -s http://localhost:3000 && kill %1
+```
+
+預期輸出（先本地驗證邏輯正確，再容器化）：
+
+```text
+listening on 3000
+demo-app vdev @ 2026-10-04T12:34:12.265Z
 ```
 
 ## 寫 Dockerfile
@@ -40,6 +51,8 @@ EXPOSE 3000
 CMD ["node", "server.js"]
 EOF
 ```
+
+預期輸出：無輸出（寫出 `Dockerfile`）。
 
 每個指令的意義：
 
@@ -58,10 +71,24 @@ EOF
 [ "$DOCKER_OK" = yes ] && docker build -t demo-app:1.0 . || echo "（略過：Docker 未就緒）"
 ```
 
+預期輸出（最後幾行；每一層 `DONE` 表示建好）：
+
+```text
+#11 unpacking to docker.io/library/demo-app:1.0 0.0s done
+#11 DONE 0.2s
+```
+
 ## 跑起來驗證
 
 ```shell
 [ "$DOCKER_OK" = yes ] && docker run -d --name demo-app -p 3000:3000 demo-app:1.0 && sleep 3 && curl -s http://localhost:3000 || echo "（略過）"
+```
+
+預期輸出（跟本地跑的結果一樣——這就是環境一致性）：
+
+```text
+a1b2c3d4e5f6...（container id）
+demo-app vdev @ 2026-10-04T12:35:34.282Z
 ```
 
 ## 觀察 image 的構成
@@ -72,8 +99,24 @@ EOF
 [ "$DOCKER_OK" = yes ] && docker history demo-app:1.0 || echo "（略過）"
 ```
 
+預期輸出（每行一層，最上面是你的 `CMD`，下面是 base image 的層）：
+
+```text
+IMAGE          CREATED        CREATED BY                                      SIZE
+xxxxxxxxxxxx   ... ago   CMD ["node" "server.js"]                      ...
+xxxxxxxxxxxx   ... ago   ENV PORT=3000                                 ...
+xxxxxxxxxxxx   ... ago   COPY server.js .                              ...
+...（node:20-alpine 的層）
+```
+
 ```shell
 [ "$DOCKER_OK" = yes ] && docker image inspect demo-app:1.0 --format '{{.Config.Cmd}} / size={{.Size}}' || echo "（略過）"
+```
+
+預期輸出（啟動命令 + image 大小，數字每次略有不同）：
+
+```text
+[node server.js] / size=187123456
 ```
 
 ## 改程式碼、重建：體驗分層快取
@@ -84,14 +127,36 @@ EOF
 sed -i '' 's/demo-app v/demo-app 改版 v/' server.js && [ "$DOCKER_OK" = yes ] && docker build -t demo-app:1.1 . || echo "（略過）"
 ```
 
+預期輸出（注意 `CACHED`：沒變動的層直接重用，所以第二次很快）：
+
+```text
+#8 [2/4] WORKDIR /app 0.0s done
+...
+#11 DONE 0.2s
+```
+
 ```shell
 [ "$DOCKER_OK" = yes ] && docker images demo-app || echo "（略過）"
+```
+
+預期輸出（兩個版本並存）：
+
+```text
+REPOSITORY   TAG       IMAGE ID       CREATED        SIZE
+demo-app     1.1       xxxxxxxxxxxx   ... ago   ...MB
+demo-app     1.0       xxxxxxxxxxxx   ... ago   ...MB
 ```
 
 ## 清理
 
 ```shell
 [ "$DOCKER_OK" = yes ] && docker rm -f demo-app || echo "（略過）"
+```
+
+預期輸出：
+
+```text
+demo-app
 ```
 
 ## 重點回顧

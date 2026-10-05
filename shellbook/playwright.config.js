@@ -12,7 +12,7 @@ module.exports = defineConfig({
   use: { baseURL: `http://127.0.0.1:${PORT}`, trace: 'retain-on-failure' },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: `node bin/shellbook.js examples --port ${PORT}`,
+    command: `node bin/shellbook.js books/shellbook-examples --port ${PORT}`,
     url: `http://127.0.0.1:${PORT}/api/info`,
     reuseExistingServer: !process.env.CI,
     timeout: 20_000,

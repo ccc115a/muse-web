@@ -6,7 +6,13 @@ Cargo 是 Rust 的工程中樞：建置、測試、套件管理、文件一把�
 
 ```shell
 export RUST_OK=$(command -v cargo >/dev/null && command -v rustc >/dev/null && echo yes || echo no)
-[ "$RUST_OK" = yes ] && cargo --version || echo "Rust 未就緒，請先回到 README 安裝"
+[ "$RUST_OK" = yes ] && cargo --version || echo "Rust 未就緒，請先做第零章環境設定"
+```
+
+預期輸出：
+
+```text
+cargo 1.82.0 (8f40fc59f 2024-08-21)
 ```
 
 ## 把範例專案搬進工作目錄
@@ -18,10 +24,32 @@ if [ -z "$RUST_BOOK" ] || [ ! -d "$RUST_BOOK/examples/hello" ]; then _d="$PWD"; 
 rm -rf /tmp/rust-demo && cp -r "$RUST_BOOK/examples/hello" /tmp/rust-demo && ls /tmp/rust-demo
 ```
 
+預期輸出（`RUST_BOOK` 是你執行時所在的書目錄）：
+
+```text
+RUST_BOOK=/Users/Shared/ccc/115a/muse-web/shellbook/books/rust-se
+Cargo.toml
+src
+```
+
 進入專案：
 
 ```shell
 cd /tmp/rust-demo && cat Cargo.toml src/main.rs
+```
+
+預期輸出：
+
+```text
+[package]
+name = "hello"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+fn main() {
+    println!("hello, Rust!");
+}
 ```
 
 ## cargo run：編譯並執行
@@ -30,10 +58,25 @@ cd /tmp/rust-demo && cat Cargo.toml src/main.rs
 cargo run
 ```
 
+預期輸出（第一次多了編譯訊息）：
+
+```text
+Compiling hello v0.1.0 (/tmp/rust-demo)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.52s
+     Running `target/debug/hello`
+hello, Rust!
+```
+
 第一次會建置，之後沒改碼就直接執行。`--quiet` 安靜模式：
 
 ```shell
 cargo run --quiet
+```
+
+預期輸出（只剩程式輸出）：
+
+```text
+hello, Rust!
 ```
 
 ## cargo check：只檢查不產出執行檔
@@ -44,6 +87,13 @@ cargo run --quiet
 cargo check
 ```
 
+預期輸出：
+
+```text
+Checking hello v0.1.0 (/tmp/rust-demo)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s
+```
+
 ## cargo build：建置
 
 debug 版在 `target/debug/`：
@@ -52,10 +102,24 @@ debug 版在 `target/debug/`：
 cargo build && ./target/debug/hello
 ```
 
+預期輸出：
+
+```text
+Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s
+hello, Rust!
+```
+
 release 版在 `target/release/`，有完整優化：
 
 ```shell
 cargo build --release && ./target/release/hello
+```
+
+預期輸出：
+
+```text
+Finished `release` profile [optimized] target(s) in 0.21s
+hello, Rust!
 ```
 
 ## 看看 target 裡有什麼
@@ -64,10 +128,28 @@ cargo build --release && ./target/release/hello
 ls target/debug/ | head -10
 ```
 
+預期輸出（檔名含 hash，每次略有不同）：
+
+```text
+build
+deps
+examples
+hello
+hello.d
+incremental
+```
+
 ## cargo clean：清掉建置產物
 
 ```shell
 cargo clean && ls target 2>/dev/null || echo "target 已清空"
+```
+
+預期輸出：
+
+```text
+Removed 50 files, 1.9MiB total
+target 已清空
 ```
 
 ## 重點回顧

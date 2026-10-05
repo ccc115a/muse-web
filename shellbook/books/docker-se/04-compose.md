@@ -10,6 +10,8 @@ export DOCKER_OK=$(command -v docker >/dev/null && docker info >/dev/null 2>&1 &
 cd /tmp/demo-docker
 ```
 
+預期輸出：無輸出（本章沿用第二章的 `/tmp/demo-docker`，裡面已有 `Dockerfile`）。
+
 ## 寫 compose.yml
 
 兩個服務：`app`（第二章建的 Node.js image）+ `redis`。同一個 compose 內的服務自動同網路、用服務名互連：
@@ -35,6 +37,8 @@ volumes:
 EOF
 ```
 
+預期輸出：無輸出（寫出 `compose.yml`）。
+
 關鍵概念：
 
 - `build: .`：這個服務用本地 Dockerfile 建（有 image 就直接用，可兩者並存）
@@ -48,8 +52,25 @@ EOF
 [ "$DOCKER_OK" = yes ] && docker compose up -d || echo "（略過：Docker 未就緒）"
 ```
 
+預期輸出：
+
+```text
+[+] Running 3/3
+ ✔ Network demo-docker_default  Created
+ ✔ Container demo-docker-redis-1  Started
+ ✔ Container demo-docker-app-1  Started
+```
+
 ```shell
 [ "$DOCKER_OK" = yes ] && docker compose ps || echo "（略過）"
+```
+
+預期輸出：
+
+```text
+NAME                  IMAGE          COMMAND                  SERVICE   CREATED         STATUS         PORTS
+demo-docker-app-1     demo-app:1.1   "docker-entrypoint.…"   app       ... ago   Up ...   0.0.0.0:3000->3000/tcp
+demo-docker-redis-1   redis:alpine   "docker-entrypoint.…"   redis     ... ago   Up ...
 ```
 
 ## 驗證服務
@@ -58,16 +79,35 @@ EOF
 [ "$DOCKER_OK" = yes ] && sleep 1 && curl -s http://localhost:3000 || echo "（略過）"
 ```
 
+預期輸出（第二章改版後的程式 + 本章設的 `APP_VERSION=1.1`）：
+
+```text
+demo-app 改版 v1.1 @ 2026-10-04T12:39:18.931Z
+```
+
 從 app 容器內連 redis（用服務名）：
 
 ```shell
 [ "$DOCKER_OK" = yes ] && docker compose exec redis redis-cli ping || echo "（略過）"
 ```
 
+預期輸出：
+
+```text
+PONG
+```
+
 ## 看 log
 
 ```shell
 [ "$DOCKER_OK" = yes ] && docker compose logs --tail 3 || echo "（略過）"
+```
+
+預期輸出（兩台機器的 log 混在一起，前面標服務名）：
+
+```text
+demo-docker-app-1    | listening on 3000
+demo-docker-redis-1  | 1:C ... * Ready to accept connections
 ```
 
 ## 改 compose 後套用
@@ -78,16 +118,40 @@ EOF
 sed -i '' 's/APP_VERSION=1.1/APP_VERSION=1.2/' compose.yml && [ "$DOCKER_OK" = yes ] && docker compose up -d && sleep 1 && curl -s http://localhost:3000 || echo "（略過）"
 ```
 
+預期輸出（只有 app 重建，版本變成 1.2）：
+
+```text
+[+] Running 1/1
+ ✔ Container demo-docker-app-1  Started
+demo-app 改版 v1.2 @ ...
+```
+
 ## 收掉整組服務
 
 ```shell
 [ "$DOCKER_OK" = yes ] && docker compose down || echo "（略過）"
 ```
 
+預期輸出：
+
+```text
+[+] Running 3/3
+ ✔ Container demo-docker-app-1  Removed
+ ✔ Container demo-docker-redis-1  Removed
+ ✔ Network demo-docker_default  Removed
+```
+
 `down -v` 連 named volume 一起刪（預設 down 會保留資料）：
 
 ```shell
 [ "$DOCKER_OK" = yes ] && docker compose down -v 2>/dev/null || echo "（略過）"
+```
+
+預期輸出（連 volume 一起刪；已經 down 過所以很快）：
+
+```text
+[+] Running 1/1
+ ✔ Volume demo-docker_redis-data  Removed
 ```
 
 ## 重點回顧

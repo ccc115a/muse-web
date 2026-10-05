@@ -31,6 +31,7 @@ flowboard/
 
 ## 章節
 
+- [第零章：環境設定](00-env-setting.md) ← 先執行這章
 - [第一章：分析與設計](01-analysis-design.md)
 - [第二章：Git Flow 版本流程](02-gitflow.md)
 - [第三章：實作 Rust 後端](03-rust-backend.md)
@@ -38,22 +39,5 @@ flowboard/
 - [第五章：Playwright 端到端測試](05-e2e.md)
 - [第六章：Docker 與 CI/CD](06-docker-devops.md)
 - [第七章：發布與運維](07-release-ops.md)
-
-## 環境檢查（先執行這些）
-
-一次偵測所有工具，結果存進變數，後面章節都會用到：
-
-```shell
-export GH_OK=$(command -v gh >/dev/null && gh auth status >/dev/null 2>&1 && echo yes || echo no)
-export RUST_OK=$(command -v cargo >/dev/null && echo yes || echo no)
-export NODE_OK=$(command -v node >/dev/null && command -v npm >/dev/null && echo yes || echo no)
-export DOCKER_OK=$(command -v docker >/dev/null && docker info >/dev/null 2>&1 && echo yes || echo no)
-export PW_OK=$(ls ~/Library/Caches/ms-playwright 2>/dev/null | grep -q chromium && echo yes || echo no)
-echo "GH_OK=$GH_OK RUST_OK=$RUST_OK NODE_OK=$NODE_OK DOCKER_OK=$DOCKER_OK PW_OK=$PW_OK"
-```
-
-```shell
-cargo --version && node --version && docker --version
-```
 
 [← 回到 shellbook 首頁](../../README.md)

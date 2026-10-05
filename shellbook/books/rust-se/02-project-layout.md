@@ -10,12 +10,40 @@ rm -rf /tmp/rust-todo && cp -r "$RUST_BOOK/examples/todolist" /tmp/rust-todo
 cd /tmp/rust-todo && find . -name '*.rs' -o -name 'Cargo.toml' | sort
 ```
 
+預期輸出（標準 lib + bin + 整合測試佈局）：
+
+```text
+./Cargo.toml
+./src/lib.rs
+./src/main.rs
+./src/todo.rs
+./tests/cli.rs
+```
+
 ## 看核心邏輯：src/todo.rs
 
 `TodoList` 結構體 + impl，附單元測試：
 
 ```shell
 sed -n '1,35p' src/todo.rs
+```
+
+預期輸出（前 35 行：結構體 + 建構 + 讀檔）：
+
+```text
+use std::fs;
+use std::path::PathBuf;
+
+pub struct TodoList {
+    tasks: Vec<(String, bool)>,
+    path: PathBuf,
+}
+
+impl TodoList {
+    pub fn new() -> Self {
+        TodoList::with_path(PathBuf::from("todos.txt"))
+    }
+    ...
 ```
 
 ## 看執行檔包裝：src/main.rs
@@ -26,6 +54,17 @@ sed -n '1,35p' src/todo.rs
 cat src/main.rs
 ```
 
+預期輸出（注意 `main` 裡沒有業務邏輯，只有參數解析）：
+
+```text
+use todolist::todo::TodoList;
+
+fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut list = TodoList::new();
+    ...
+```
+
 `pub mod todo;`（在 `lib.rs`）把模組公開給外部；`use todolist::todo::TodoList;` 在 main 中引入。
 
 ## 實際跑跑看
@@ -34,18 +73,49 @@ cat src/main.rs
 cargo run --quiet -- add "寫文件"
 ```
 
+預期輸出：
+
+```text
+已加入：寫文件
+```
+
 ```shell
 cargo run --quiet -- add "寫測試" && cargo run --quiet -- list
+```
+
+預期輸出（資料已存檔，跨 process 看得到）：
+
+```text
+已加入：寫測試
+  1. [ ] 寫文件
+  2. [ ] 寫測試
+共 2 項，未完成 2 項
 ```
 
 ```shell
 cargo run --quiet -- done 1 && cargo run --quiet -- list
 ```
 
+預期輸出：
+
+```text
+已完成第 1 項
+  1. [✓] 寫文件
+  2. [ ] 寫測試
+共 2 項，未完成 1 項
+```
+
 錯誤用法會走 stderr 並回傳非零結束碼：
 
 ```shell
 cargo run --quiet -- badcmd; echo "exit=$?"
+```
+
+預期輸出（用法說明走 stderr，結束碼非零）：
+
+```text
+用法: todolist add <任務> | list | done <編號>
+exit=1
 ```
 
 ## 模組的工程意義
