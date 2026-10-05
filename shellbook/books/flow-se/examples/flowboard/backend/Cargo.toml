@@ -1,0 +1,7 @@
+[package]
+name = "flowboard"
+version = "0.1.0"
+edition = "2021"
+
+# 刻意零依賴：只用 std，保證離線也能建置
+[dependencies]

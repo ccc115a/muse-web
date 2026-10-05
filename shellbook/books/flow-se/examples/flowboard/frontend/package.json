@@ -1,0 +1,12 @@
+{
+  "name": "flowboard-frontend",
+  "version": "0.1.0",
+  "description": "flowboard 任務看板前端",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node server.mjs",
+    "test": "node --test test/lib.test.mjs",
+    "preview": "npm run build && npm start"
+  }
+}

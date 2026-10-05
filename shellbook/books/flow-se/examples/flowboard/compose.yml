@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    image: flowboard:dev
+    ports:
+      - "3001:3001"
+    environment:
+      - APP_VERSION=${APP_VERSION:-dev}
+    volumes:
+      - flowboard-data:/app/data
+
+volumes:
+  flowboard-data:

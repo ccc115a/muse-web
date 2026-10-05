@@ -1,0 +1,6 @@
+body { font-family: system-ui, sans-serif; max-width: 560px; margin: 2rem auto; padding: 0 1rem; }
+#add-form { display: flex; gap: 0.5rem; }
+#new-title { flex: 1; padding: 0.5rem; }
+li { display: flex; gap: 0.5rem; align-items: center; padding: 0.25rem 0; }
+li.done span { text-decoration: line-through; color: #888; }
+li button { margin-left: auto; }

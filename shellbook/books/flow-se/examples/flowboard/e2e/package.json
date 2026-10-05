@@ -1,0 +1,13 @@
+{
+  "name": "flowboard-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "flowboard 端到端測試",
+  "scripts": {
+    "setup": "npx playwright install chromium --only-shell",
+    "test": "npx playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}
