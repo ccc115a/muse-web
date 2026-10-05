@@ -14,7 +14,7 @@ export RUST_OK=$(command -v cargo >/dev/null && command -v rustc >/dev/null && e
 先清掉舊環境，再從本書 `examples/` 複製（先 `rm` 再 `cp`，避免 cp 進已存在目錄變成子目錄）：
 
 ```shell
-[ -d books/rust-se/examples ] && export RUST_BOOK=books/rust-se || export RUST_BOOK=$(find "$HOME" -maxdepth 6 -type d -path '*shellbook/books/rust-se' 2>/dev/null | head -1)
+if [ -z "$RUST_BOOK" ] || [ ! -d "$RUST_BOOK/examples/hello" ]; then _d="$PWD"; while [ "$_d" != / ] && [ ! -d "$_d/examples/hello" ] && [ ! -d "$_d/books/rust-se/examples/hello" ]; do _d=$(dirname "$_d"); done; if [ -d "$_d/examples/hello" ]; then export RUST_BOOK="$_d"; elif [ -d "$_d/books/rust-se/examples/hello" ]; then export RUST_BOOK="$_d/books/rust-se"; else export RUST_BOOK=$(find /Users/Shared "$HOME" -maxdepth 8 -type d -path '*shellbook/books/rust-se' 2>/dev/null | head -1); fi; unset _d; fi; echo "RUST_BOOK=$RUST_BOOK"
 rm -rf /tmp/rust-demo && cp -r "$RUST_BOOK/examples/hello" /tmp/rust-demo && ls /tmp/rust-demo
 ```
 

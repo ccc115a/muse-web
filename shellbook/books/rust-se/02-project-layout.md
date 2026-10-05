@@ -5,7 +5,7 @@ Rust 的標準專案結構把「函式庫」與「執行檔」分開：`src/lib.
 先確保環境就緒（等冪，重複執行無害）：
 
 ```shell
-[ -d books/rust-se/examples ] && export RUST_BOOK=books/rust-se || export RUST_BOOK=$(find "$HOME" -maxdepth 6 -type d -path '*shellbook/books/rust-se' 2>/dev/null | head -1)
+if [ -z "$RUST_BOOK" ] || [ ! -d "$RUST_BOOK/examples/todolist" ]; then _d="$PWD"; while [ "$_d" != / ] && [ ! -d "$_d/examples/todolist" ] && [ ! -d "$_d/books/rust-se/examples/todolist" ]; do _d=$(dirname "$_d"); done; if [ -d "$_d/examples/todolist" ]; then export RUST_BOOK="$_d"; elif [ -d "$_d/books/rust-se/examples/todolist" ]; then export RUST_BOOK="$_d/books/rust-se"; else export RUST_BOOK=$(find /Users/Shared "$HOME" -maxdepth 8 -type d -path '*shellbook/books/rust-se' 2>/dev/null | head -1); fi; unset _d; fi; echo "RUST_BOOK=$RUST_BOOK"
 rm -rf /tmp/rust-todo && cp -r "$RUST_BOOK/examples/todolist" /tmp/rust-todo
 cd /tmp/rust-todo && find . -name '*.rs' -o -name 'Cargo.toml' | sort
 ```

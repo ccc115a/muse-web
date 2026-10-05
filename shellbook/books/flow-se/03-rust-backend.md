@@ -5,7 +5,7 @@
 先確保環境就緒（等冪，重複執行無害）：
 
 ```shell
-[ -d /tmp/flowboard/backend ] || { [ -d books/flow-se/examples ] && export FLOW_BOOK=books/flow-se || export FLOW_BOOK=$(find "$HOME" -maxdepth 6 -type d -path '*shellbook/books/flow-se' 2>/dev/null | head -1); rm -rf /tmp/flowboard && cp -r "$FLOW_BOOK/examples/flowboard" /tmp/flowboard; }
+[ -d /tmp/flowboard/backend ] || { if [ -z "$FLOW_BOOK" ] || [ ! -d "$FLOW_BOOK/examples/flowboard" ]; then _d="$PWD"; while [ "$_d" != / ] && [ ! -d "$_d/examples/flowboard" ] && [ ! -d "$_d/books/flow-se/examples/flowboard" ]; do _d=$(dirname "$_d"); done; if [ -d "$_d/examples/flowboard" ]; then export FLOW_BOOK="$_d"; elif [ -d "$_d/books/flow-se/examples/flowboard" ]; then export FLOW_BOOK="$_d/books/flow-se"; else export FLOW_BOOK=$(find /Users/Shared "$HOME" -maxdepth 8 -type d -path '*shellbook/books/flow-se' 2>/dev/null | head -1); fi; unset _d; fi; echo "FLOW_BOOK=$FLOW_BOOK"; rm -rf /tmp/flowboard && cp -r "$FLOW_BOOK/examples/flowboard" /tmp/flowboard; }
 cd /tmp/flowboard/backend && ls src/
 
 ## 看架構：兩個檔案
