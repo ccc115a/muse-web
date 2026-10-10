@@ -2,6 +2,6 @@
 
 先執行 ./serve.sh
 
-然後
+然後打開 http://localhost:3000/web-lean
 
 ![](img/web-lean.png)
