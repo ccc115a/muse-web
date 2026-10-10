@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js"></script>
+</head>
+<body>
+  <div id="container" style="width:800px;height:600px;border:1px solid #ccc"></div>
+
+  <script>
+    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' }});
+    require(['vs/editor/editor.main'], function() {
+      // 1. 初始化 Monaco 編輯器
+      const editor = monaco.editor.create(document.getElementById('container'), {
+        value: [
+          'type Impl<P, Q> = (hP: P) => Q;',
+          '',
+          '// 邏輯證明：假言三段論 (P → Q) → (Q → R) → (P → R)',
+          'export const hyp_syll = <P, Q, R>() =>',
+          '  (h1: Impl<P, Q>) =>',
+          '  (h2: Impl<Q, R>) =>',
+          '  (hP: P): R =>',
+          '    h2(h1(hP)); // 試著把這行改錯（例如改寫成 h1(hP)），瀏覽器會立刻劃紅線！'
+        ].join('\n'),
+        language: 'typescript',
+        theme: 'vs-dark'
+      });
+    });
+  </script>
+</body>
+</html>

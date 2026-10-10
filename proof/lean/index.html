@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mini-Lean — 純前端證明系統</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Mini-Lean <span class="sub">純前端證明系統</span></h1>
+  <p class="hint">相依型別 kernel＋tactic 引擎全部跑在瀏覽器裡（ES 模組，無後端）。先用 <code>npm run serve</code> 啟動靜態伺服器再開啟本頁。</p>
+</header>
+<main>
+  <section class="left">
+    <div class="row">
+      <label for="example">範例：</label>
+      <select id="example"></select>
+      <button id="load" title="重新載入所選範例">載入</button>
+      <button id="run" class="primary" title="執行證明（Ctrl+Enter）">▶ 執行</button>
+      <button id="share" title="把目前編輯器內容編碼進網址">分享連結</button>
+      <button id="clear" title="清空輸出">清空</button>
+    </div>
+    <textarea id="editor" spellcheck="false" placeholder="在此輸入 Mini-Lean 證明…"></textarea>
+    <div class="row small">
+      <span id="status">就緒</span>
+      <span id="stat"></span>
+    </div>
+    <details class="cheat">
+      <summary> tactic速查表（點開）</summary>
+      <div class="cheat-body">
+      <table>
+        <tr><th>tactic</th><th>說明</th></tr>
+        <tr><td><code>intro x y</code></td><td>引入 ∀/→ 的前件</td></tr>
+        <tr><td><code>exact e</code></td><td>用證明項 <code>e</code> 直接結案（含 <code>⟨a, b⟩</code> 匿名建構子）</td></tr>
+        <tr><td><code>apply e</code></td><td>用引理 <code>e</code> 化簡目標（結論須唯一決定參數）</td></tr>
+        <tr><td><code>assumption</code> / <code>trivial</code></td><td>在假設中找證明 / 簡易自動結案</td></tr>
+        <tr><td><code>rfl</code></td><td>定義相等（會計算，如 <code>2 + 3 = 5</code>）</td></tr>
+        <tr><td><code>constructor</code></td><td>And 拆成兩個子目標；True 直接結案</td></tr>
+        <tr><td><code>left</code> / <code>right</code></td><td>Or 選左/右</td></tr>
+        <tr><td><code>cases h with a b</code></td><td>拆解 And / Or / Exists / False / Eq / Nat</td></tr>
+        <tr><td><code>induction n with k ih</code></td><td>對 Nat 歸納（base / step）</td></tr>
+        <tr><td><code>rw [h1, &lt;- h2]</code></td><td>用等式改寫目標（自動試 rfl 收尾）</td></tr>
+        <tr><td><code>simp</code> / <code>simp [lem]</code> / <code>simp only [lem]</code></td><td>化簡（內建 Nat/Prop 引理＋fixpoint）</td></tr>
+        <tr><td><code>have h : T := e</code> / <code>… := by …</code></td><td>加入中間引理</td></tr>
+        <tr><td><code>show T</code></td><td>換成定義相等的目標</td></tr>
+        <tr><td><code>· tac</code> / <code>case tag =&gt; tac; tac</code> / <code>all_goals tac</code></td><td>子目標聚焦（每行預設作用於第一個子目標；<code>;</code> 廣播到全部）</td></tr>
+        <tr><td><code>sorry</code></td><td>暫時承認（會警告並記錄為公理）</td></tr>
+      </table>
+      <p>宣告：<code>theorem 名 (x : T) : P := by …</code>（<code>lemma/example/def/axiom</code> 亦可）；<code>#check e</code>、<code>#eval e</code> 可印型別與求值。</p>
+      </div>
+    </details>
+  </section>
+  <section class="right">
+    <h2>輸出</h2>
+    <div id="output" class="output"><p class="dim">按「▶ 執行」檢查編輯器中的證明。每個證明項都會被可信 kernel 重新檢查。</p></div>
+  </section>
+</main>
+<footer>
+  <span>Node.js 測試：<code>npm test</code>（kernel＋parser＋tactics＋全部範例＋前端靜態檢查）</span>
+</footer>
+<script type="module" src="app.js"></script>
+</body>
+</html>

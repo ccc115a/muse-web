@@ -1,0 +1,12 @@
+{
+  "name": "mini-lean",
+  "version": "1.0.0",
+  "description": "純前端 Lean 風格證明系統：相依型別 kernel + tactic 引擎，Node.js 可測、瀏覽器可跑",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/run_tests.mjs",
+    "serve": "node server.mjs",
+    "check-examples": "node -e \"import('./src/lean.mjs').then(async ({checkSource}) => { const fs = await import('node:fs/promises'); const files = (await fs.readdir('./examples')).filter(f => f.endsWith('.lean')).sort(); let ok = true; for (const f of files) { const r = checkSource(await fs.readFile('./examples/' + f, 'utf8'), { filename: f }); console.log((r.ok ? 'OK   ' : 'FAIL ') + f); if (!r.ok) { console.log(r.errors); ok = false; } } process.exit(ok ? 0 : 1); })\""
+  },
+  "license": "MIT"
+}
