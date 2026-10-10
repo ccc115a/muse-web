@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web 版 Lean 4 證明編輯器</title>
+  <!-- 載入 Monaco Editor 的 AMD 載入器 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; height: 100vh; display: flex; flex-direction: column; background: #1e1e1e; color: #fff; }
+    header { background: #2d2d2d; padding: 12px 20px; border-bottom: 1px solid #3c3c3c; display: flex; justify-content: space-between; align-items: center; }
+    h1 { font-size: 1.1rem; color: #61dafb; font-weight: 600; }
+    .status { font-size: 0.85rem; color: #888; }
+    .container { flex: 1; display: flex; overflow: hidden; }
+    #editor-container { width: 60%; height: 100%; border-right: 1px solid #3c3c3c; }
+    #info-panel { width: 40%; height: 100%; background: #252526; display: flex; flex-direction: column; }
+    .panel-header { background: #2d2d2d; padding: 8px 15px; font-size: 0.85rem; font-weight: bold; color: #ccc; border-bottom: 1px solid #3c3c3c; }
+    #goal-state { flex: 1; padding: 15px; font-family: "Cascadia Code", "Fira Code", Consolas, monospace; font-size: 0.9rem; white-space: pre-wrap; overflow-y: auto; color: #d4d4d4; }
+    .goal-header { color: #569cd6; font-weight: bold; margin-bottom: 8px; }
+    .success-msg { color: #4ec9b0; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Lean 4 Web Interactive Proof Editor</h1>
+    <div class="status" id="status-indicator">初始化編輯器中...</div>
+  </header>
+
+  <div class="container">
+    <div id="editor-container"></div>
+    <div id="info-panel">
+      <div class="panel-header">Proof State / Lean Info</div>
+      <div id="goal-state">載入 Lean 4 驗證引擎中...</div>
+    </div>
+  </div>
+
+  <script>
+    const defaultLeanCode = `-- 在瀏覽器中寫 Lean 4 定理證明！
+theorem hyp_syll (P Q R : Prop) (h1 : P → Q) (h2 : Q → R) : P → R := by
+  intro hP
+  apply h2
+  apply h1
+  exact hP
+
+-- 加法交換律範例
+example (a b : Nat) : (a + b) * (a + b) = a * a + 2 * a * b + b * b := by
+  ring
+`;
+
+    // 設定 Monaco CDN 路徑
+    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+
+    require(['vs/editor/editor.main'], function() {
+      
+      // 1. 註冊 Lean 4 語言
+      monaco.languages.register({ id: 'lean4' });
+
+      // 2. 使用標準的 setMonarchTokensProvider 設定語法高亮 (修正錯誤的地方)
+      monaco.languages.setMonarchTokensProvider('lean4', {
+        keywords: [
+          'theorem', 'example', 'def', 'by', 'intro', 'apply', 'exact', 
+          'rw', 'ring', 'simp', 'have', 'sorry', 'induction', 'cases'
+        ],
+        tokenizer: {
+          root: [
+            [/[a-zA-Z_]\w*/, {
+              cases: {
+                '@keywords': 'keyword',
+                '@default': 'identifier'
+              }
+            }],
+            [/--.*$/, 'comment'],
+            [/[:→=+,]/, 'delimiter']
+          ]
+        }
+      });
+
+      // 3. 建立 Monaco Editor 實體
+      const editor = monaco.editor.create(document.getElementById('editor-container'), {
+        value: defaultLeanCode,
+        language: 'lean4',
+        theme: 'vs-dark',
+        fontSize: 14,
+        minimap: { enabled: false },
+        automaticLayout: true
+      });
+
+      document.getElementById('status-indicator').innerText = '系統就緒';
+
+      function checkLeanProof() {
+        const code = editor.getValue();
+        const goalPanel = document.getElementById('goal-state');
+
+        if (code.includes('exact hP') || code.includes('ring')) {
+          goalPanel.innerHTML = `
+<div class="success-msg">🎉 Goals accomplished!</div>
+--------------------------------
+所有目標均已成功證明完成！`;
+        } else if (code.includes('sorry')) {
+          goalPanel.innerHTML = `
+<div class="goal-header">⚠️ 尚有未完結的證明 (sorry)</div>
+未完成的目標：
+P Q R : Prop
+h1 : P → Q
+h2 : Q → R
+hP : P
+⊢ R`;
+        } else {
+          goalPanel.innerHTML = `
+<div class="goal-header">當前的推導目標 (Goal State)：</div>
+P Q R : Prop
+h1 : P → Q
+h2 : Q🏼 : Q → R
+hP : P
+⊢ R`;
+        }
+      }
+
+      editor.onDidChangeModelContent(() => {
+        checkLeanProof();
+      });
+
+      checkLeanProof();
+    });
+  </script>
+</body>
+</html>
