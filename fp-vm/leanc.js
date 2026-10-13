@@ -35,12 +35,15 @@ const TOPKW = new Set(['inductive', 'structure', 'class', 'instance', 'def', 'ab
   'end', 'variable', 'universe']);
 const PROOFKW = new Set(['theorem', 'lemma', 'example']);
 const RESERVED_VAR = new Set(['nil', 'true', 'false', 'by', 'where']);
+// lispc 特殊形名: 定義了會被靜默劫持 (呼叫形狀撞特殊形)，直接禁止
+const RESERVED_LISPC = new Set(['apply', 'throw', 'quote', 'lambda', 'begin',
+  'cond', 'and', 'or', 'when', 'unless', 'define', 'set!']);
 
 function tokenize(src) {
   const toks = []; let i = 0, line = 1, lineStart = 0, tokCol = 0;
   const push = (k, v) => toks.push({ k, v, line, col: tokCol });
-  const isIdStart = c => /[A-Za-z_]/.test(c || '');
-  const isIdChar = c => /[A-Za-z0-9_']/.test(c || '') || c === '?' || c === '!';   // head? / get!
+  const isIdStart = c => c !== 'λ' && /[\p{L}_]/u.test(c || '');
+  const isIdChar = c => (c !== 'λ' && /[\p{L}\p{Nd}_']/u.test(c || '')) || c === '?' || c === '!';   // head? / get!
   while (i < src.length) {
     const c = src[i];
     if (c === '\n') { push('nl'); line++; i++; lineStart = i; continue; }
@@ -69,11 +72,24 @@ function tokenize(src) {
     }
     const rest = src.slice(i);
     let m;
-    if ((m = /^0[xX][0-9a-fA-F]+/.exec(rest))) { push('num', BigInt('0x' + m[0].slice(2))); i += m[0].length; continue; }
-    if ((m = /^0[oO][0-7]+/.exec(rest))) { push('num', BigInt('0o' + m[0].slice(2))); i += m[0].length; continue; }
-    if ((m = /^0[bB][01]+/.exec(rest))) { push('num', BigInt('0b' + m[0].slice(2))); i += m[0].length; continue; }
-    if ((m = /^\d+\.\d+/.exec(rest))) { push('num', Number(m[0])); i += m[0].length; continue; }
-    if ((m = /^\d+/.exec(rest))) { push('num', BigInt(m[0])); i += m[0].length; continue; }
+    // 緊貼數字的負號: 前面是空白/開括號/運算子才算一元 (否則是減法；a-5 保持二元)
+    if (c === '-' && /[0-9]/.test(src[i + 1] || '')) {
+      const pc = i === 0 ? ' ' : src[i - 1];
+      if (/[\s([{,;:|=+\-*/%<>&@~^]/.test(pc)) {
+        const rest2 = src.slice(i + 1);
+        let m2;
+        if ((m2 = /^0[xX][0-9a-fA-F][0-9a-fA-F_]*/.exec(rest2))) { push('num', -BigInt('0x' + m2[0].slice(2).replace(/_/g, ''))); i += 1 + m2[0].length; continue; }
+        if ((m2 = /^0[oO][0-7][0-7_]*/.exec(rest2))) { push('num', -BigInt('0o' + m2[0].slice(2).replace(/_/g, ''))); i += 1 + m2[0].length; continue; }
+        if ((m2 = /^0[bB][01][01_]*/.exec(rest2))) { push('num', -BigInt('0b' + m2[0].slice(2).replace(/_/g, ''))); i += 1 + m2[0].length; continue; }
+        if ((m2 = /^\d[\d_]*\.\d[\d_]*/.exec(rest2))) { push('num', -Number(m2[0].replace(/_/g, ''))); i += 1 + m2[0].length; continue; }
+        if ((m2 = /^\d[\d_]*/.exec(rest2))) { push('num', -BigInt(m2[0].replace(/_/g, ''))); i += 1 + m2[0].length; continue; }
+      }
+    }
+    if ((m = /^0[xX][0-9a-fA-F][0-9a-fA-F_]*/.exec(rest))) { push('num', BigInt('0x' + m[0].slice(2).replace(/_/g, ''))); i += m[0].length; continue; }
+    if ((m = /^0[oO][0-7][0-7_]*/.exec(rest))) { push('num', BigInt('0o' + m[0].slice(2).replace(/_/g, ''))); i += m[0].length; continue; }
+    if ((m = /^0[bB][01][01_]*/.exec(rest))) { push('num', BigInt('0b' + m[0].slice(2).replace(/_/g, ''))); i += m[0].length; continue; }
+    if ((m = /^\d[\d_]*\.\d[\d_]*/.exec(rest))) { push('num', Number(m[0].replace(/_/g, ''))); i += m[0].length; continue; }
+    if ((m = /^\d[\d_]*/.exec(rest))) { push('num', BigInt(m[0].replace(/_/g, ''))); i += m[0].length; continue; }
     if (c === '@') {                                             // @[attr] 跳過；@f 即 f
       if (src[i + 1] === '[') {
         let d = 0; i++;
@@ -175,6 +191,7 @@ const LEVELS = [
   { ops: ['::'], right: true },
   { ops: ['+', '-'] }, { ops: ['*', '/', '%'] },
 ];
+const SECT_OPS = new Set(['+', '-', '*', '/', '%', '=', '==', '!=', '<', '>', '<=', '>=', '&&', '||', '::', '@']);
 
 class Parser {
   constructor(toks, prescanned = null, opts = {}) {
@@ -187,9 +204,10 @@ class Parser {
     this.classes = new Map();                                        // Class -> [方法] (宣告順序)
     this.methodOf = new Map();                                       // 方法 -> {cls, idx}
     this.defs = new Set();                                           // 已定義名 (碰撞檢查)
+    this.instances = new Set();                                      // instance key (重複覆蓋警告)
     this.reservedDefs = opts.reservedDefs || null;                   // 內建 prelude 名 (禁止覆寫)
     this.allowDunder = !!opts.allowDunder;                           // 內建 prelude 才可定義 __ 名
-    this.lastLine = 1; this.appBaseCol = null; this.doMonad = null;
+    this.lastLine = 1; this.appBaseCol = null; this.doMonad = null; this.doBase = 0;
   }
   peek(skipNL = true) {
     let q = this.p;
@@ -224,7 +242,11 @@ class Parser {
       { t: 'def', name: 'print', rec: false,
         val: { t: 'lam', param: { p: 'var', name: 'x' }, body: { t: 'app', f: vr('display'), a: vr('x') } } },
     ];
-    while (this.peek()) items.push(...this.parseItem());
+    while (this.peek()) {
+      const sk = this.peek();
+      if (sk && sk.k === 'op' && sk.v === ';') { this.next(); continue; }   // 頂層容許多餘分號
+      items.push(...this.parseItem());
+    }
     return items;
   }
 
@@ -272,7 +294,15 @@ class Parser {
       if (t.v === 'class') { this.parseClass(); return []; }
       if (t.v === 'instance') return [this.parseInstance()];
       if (t.v === 'def' || t.v === 'abbrev') return [this.parseDef()];
-      if (TOPKW.has(t.v)) { this.next(); this.skipLine(); return []; }   // import/open/... no-op
+      if (TOPKW.has(t.v)) {
+        const kw = t.v;
+        this.next();
+        if (kw === 'import' || kw === 'open') {
+          const u = this.peek();
+          if (!u || u.k !== 'id') this.err(`${kw} 需要模組名`);
+        }
+        this.skipLine(); return [];                        // import/open/... no-op
+      }
       if (PROOFKW.has(t.v)) this.err(`"${t.v}" 不在 micro-Lean 範圍 (證明已擦除，無需寫出)`);
       this.err(`頂層需要 inductive / def / #eval (遇到 "${t.v}")`);
     }
@@ -369,6 +399,9 @@ class Parser {
           body: { t: 'app', f: vr('__reprAny'), a: vr(x) } });
       } else this.err(`deriving ${cls}: 方法 "${m}" 需手寫 instance (只自動產生 beq/repr)`);
     }
+    const key = cls + '|' + tags.join(',');
+    if (this.instances.has(key)) console.error(`警告: 重複 instance ${cls} (${tags.map(t => t.replace(/^ctor\//, '')).join(', ')})，後者覆蓋前者`);
+    this.instances.add(key);
     return { t: 'instance', cls, tags, methods, impls };
   }
 
@@ -457,9 +490,11 @@ class Parser {
       const params = [];
       while (this.peek() && this.peek().k === 'id') {
         const pn = strip(this.next().v);
-        if (/^[A-Z]/.test(pn)) this.err(`方法參數須為變數 (${pn})`);
+        if (/^\p{Lu}/u.test(pn)) this.err(`方法參數須為變數 (${pn})`);
         params.push(this.checkVar(pn));
       }
+      if (this.isOp('(')) this.err(`方法 "${mn}" 的參數須為變數 (複雜 pattern 請用 match)`);
+      if (!params.length) this.err(`方法 "${mn}" 需至少一個參數 (首參數為分派對象)`);
       this.expectOp(':=');
       const body = this.parseExpr();
       impls.set(mn, params.reduceRight((b, p) => ({ t: 'lam', param: { p: 'var', name: p }, body: b }), body));
@@ -467,6 +502,9 @@ class Parser {
     this.appBaseCol = outerBase;
     const missing = methods.filter(m => !seen.has(m));
     if (missing.length) this.err(`instance 缺少方法實作: ${missing.join(', ')}`);
+    const key = cls + '|' + tags.join(',');
+    if (this.instances.has(key)) console.error(`警告: 重複 instance ${cls} (${tags.map(t => t.replace(/^ctor\//, '')).join(', ')})，後者覆蓋前者`);
+    this.instances.add(key);
     return { t: 'instance', cls, ty, tags, methods, impls };
   }
 
@@ -538,7 +576,7 @@ class Parser {
         if (u.k === 'op' && u.v === ':') { this.next(); this.skipTypeTo(')'); this.expectOp(')'); for (const n of names) explicit.push(n); break; }
         if (u.k !== 'id') this.err('binder 需要參數名');
         const bn = strip(this.next().v);
-        if (/^[A-Z]/.test(bn)) this.err(`函式參數須為變數 (不可用建構子 ${bn}；要用 match 或方程式)`);
+        if (/^\p{Lu}/u.test(bn)) this.err(`函式參數須為變數 (不可用建構子 ${bn}；要用 match 或方程式)`);
         names.push(this.checkVar(bn));
       }
     }
@@ -547,6 +585,7 @@ class Parser {
   parseDef() {
     this.next();                                                 // def / abbrev
     const name = this.expectId();                                // 保持全名 (UInt32.add 之類)
+    if (RESERVED_LISPC.has(name)) this.err(`"${name}" 為保留字，不可定義 (lispc 特殊形)`);
     if (!this.allowDunder && name.startsWith('__')) this.err(`"${name}" 為保留前綴 (內建 prelude 專用)`);
     if (this.reservedDefs && this.reservedDefs.has(name)) this.err(`"${name}" 與內建 prelude 衝突`);
     if (this.methodOf.has(strip(name))) this.err(`"${name}" 與 typeclass 方法衝突`);
@@ -565,7 +604,7 @@ class Parser {
     const body = this.parseExpr();
     if (this.isKw('where')) this.err('where 子句不支援');
     const val = explicit.reduceRight((b, p) => ({ t: 'lam', param: { p: 'var', name: p }, body: b }), body);
-    return { t: 'def', name, val, rec: true };
+    return { t: 'def', name, val, rec: true, nparams: explicit.length };
   }
 
   parseEquations(name, explicit) {
@@ -575,6 +614,7 @@ class Parser {
       this.next();
       let t = this.peek();
       if (t && t.k === 'id' && t.v === name) this.next();  // 可選的函式名前綴 (全名比對)
+      if (!this.startsPatAtom()) this.err('方程式缺少 pattern');
       const pats = [this.parsePattern()];
       while (this.isOp(',')) { this.next(); pats.push(this.parsePattern()); }
       if (this.startsPatAtom()) this.err('多參數方程式請用逗號分隔 (如 | .nil, ys => ...)');
@@ -592,7 +632,7 @@ class Parser {
     const val = params.reduceRight((b, p) =>
       ({ t: 'lam', param: { p: 'var', name: p }, body: b }),
       { t: 'match', scrut, clauses });
-    return { t: 'def', name, val, rec: true };
+    return { t: 'def', name, val, rec: true, nparams: k };
   }
 
   /* ── 運算式 ── */
@@ -621,6 +661,7 @@ class Parser {
       if (!this.isKw('with')) this.err('match 缺少 with');
       this.next();
       if (this.isOp('|')) this.next();
+      if (!this.startsPatAtom()) this.err('match 需要至少一個分支');
       const clauses = [this.parseArm()];
       while (this.isOp('|')) { this.next(); clauses.push(this.parseArm()); }
       const scrut = parts.length === 1 ? parts[0] : { t: 'tuple', items: parts };
@@ -644,7 +685,12 @@ class Parser {
     if (t.k === 'kw' && (t.v === 'let' || t.v === 'have')) {
       const isHave = t.v === 'have';
       this.next();
-      let nm = null;
+      let rec = false, nm = null;
+      if (!isHave && this.peek() && this.peek().k === 'id' && this.peek().v === 'rec') {
+        let q = this.p + 1; while (this.t[q] && this.t[q].k === 'nl') q++;   // rec 後還跟識別字才是關鍵字
+        if (this.t[q] && this.t[q].k === 'id') { this.next(); rec = true; }
+      }
+      if (isHave && rec) this.err('have 不支援 rec');   // 到不了，保險
       if (this.peek() && this.peek().k === 'id') {       // have 可匿名；let 必須具名
         const save = this.p;
         const cand = strip(this.next().v);
@@ -657,6 +703,7 @@ class Parser {
       const v = this.parseExpr();
       this.expectOp(';');
       const body = this.parseExpr();
+      if (rec) return { t: 'letrec', pat: { p: 'var', name: nm }, val: v, body };
       return nm ? { t: 'let', pat: { p: 'var', name: nm }, val: v, body }
                 : { t: 'begin', items: [v, body] };
     }
@@ -691,8 +738,9 @@ class Parser {
       monad = mt.v; this.next();
       this.expectOp(']');
     }
-    const outerBase = this.appBaseCol, outerMonad = this.doMonad;
+    const outerBase = this.appBaseCol, outerMonad = this.doMonad, outerDoBase = this.doBase;
     this.doMonad = monad;
+    this.doBase = this.p;
     const acts = [];
     for (;;) {
       while (this.raw() && (this.raw().k === 'nl' || (this.raw().k === 'op' && this.raw().v === ';'))) this.p++;
@@ -708,13 +756,19 @@ class Parser {
         acts.push({ k: 'return', val: this.parseExpr() });
         continue;
       }
-      if (t.k === 'kw' && t.v === 'let') {                       // let x := e / let x ← e
+      if (t.k === 'kw' && t.v === 'let') {                       // let [rec] x := e / let x ← e
         this.p++;
+        let rec = false;
+        if (this.peek() && this.peek().k === 'id' && this.peek().v === 'rec') {
+          let q = this.p + 1; while (this.t[q] && this.t[q].k === 'nl') q++;
+          if (this.t[q] && this.t[q].k === 'id') { this.next(); rec = true; }
+        }
         const nm = this.checkVar(strip(this.expectId()));
         if (this.raw() && this.raw().k === 'op' && this.raw().v === ':=') this.p++;
-        else if (this.raw() && this.raw().k === 'larrow') this.p++;
+        else if (!rec && this.raw() && this.raw().k === 'larrow') this.p++;
+        else if (rec) this.err('let rec 不支援 ← (請用 :=)');
         else this.err('do- let 需要 := 或 ←');
-        acts.push({ k: 'let', name: nm, val: this.parseExpr() });
+        acts.push({ k: rec ? 'letrec' : 'let', name: nm, val: this.parseExpr() });
         continue;
       }
       if (t.k === 'id') {                                        // x ← e ?
@@ -733,13 +787,18 @@ class Parser {
     if (!acts.length) this.err('do 需要至少一個動作');
     this.appBaseCol = outerBase;
     this.doMonad = outerMonad;
+    this.doBase = outerDoBase;
     if (monad) return this.foldMonadic(monad, acts);
-    let body = acts[acts.length - 1].k === 'let'
+    const lastK = acts[acts.length - 1].k;
+    const mkBind = (a, b) => a.k === 'letrec'
+      ? { t: 'letrec', pat: { p: 'var', name: a.name }, val: a.val, body: b }
+      : { t: 'let', pat: { p: 'var', name: a.name }, val: a.val, body: b };
+    let body = (lastK === 'let' || lastK === 'letrec')
       ? { t: 'app', f: vr('println'), a: { t: 'nil' } }          // 尾是 let: 補 unit
       : acts[acts.length - 1].val;
     for (let i = acts.length - 2; i >= 0; i--)
-      body = acts[i].k === 'let'
-        ? { t: 'let', pat: { p: 'var', name: acts[i].name }, val: acts[i].val, body }
+      body = (acts[i].k === 'let' || acts[i].k === 'letrec')
+        ? mkBind(acts[i], body)
         : { t: 'begin', items: [acts[i].val, body] };
     if (acts.length === 1 && acts[0].k === 'expr') return acts[0].val;
     return body;
@@ -754,6 +813,8 @@ class Parser {
       const a = acts[i];
       if (a.k === 'let')
         body = { t: 'let', pat: { p: 'var', name: a.name }, val: a.val, body };
+      else if (a.k === 'letrec')
+        body = { t: 'letrec', pat: { p: 'var', name: a.name }, val: a.val, body };
       else if (a.k === 'bind')
         body = this.buildBind(a.val, { p: 'var', name: a.name }, body);
       else if (a.k === 'return')
@@ -809,19 +870,39 @@ class Parser {
     return t.k === 'op' && (t.v === '(' || t.v === '[' || t.v === '{');
   }
 
+  bracketDepth() {                                           // do 起點至今未閉合括號數
+    let d = 0;
+    for (let i = this.doBase; i < this.p; i++) {
+      const t = this.t[i];
+      if (t.k === 'arrayopen') d++;
+      else if (t.k === 'op' && (t.v === '(' || t.v === '[' || t.v === '{')) d++;
+      else if (t.k === 'op' && (t.v === ')' || t.v === ']' || t.v === '}')) d--;
+    }
+    return d;
+  }
+
   parseApp() {
     let f = this.parseAtom();
     let nArgs = 0;
     for (;;) {
       if (!this.startsAtom()) break;
       const a = this.peek();
-      // do-action 內的並置: 跨行需更深縮排，否則是下一個動作 (do 外不限)
-      if (this.appBaseCol !== null && a.line > this.lastLine && !(a.col > this.appBaseCol)) break;
+      // do-action 內的並置: 括號內不限行；否則跨行需比動作縮排深
+      if (this.appBaseCol !== null && a.line > this.lastLine
+          && !(a.col > this.appBaseCol) && this.bracketDepth() < 1) break;
       f = { t: 'app', f, a: this.parseAtom() }; nArgs++;
     }
-    if (nArgs === 0) return f;
+    if (nArgs === 0) {
+      if (f.t === 'var' && this.methodOf.has(f.name))
+        this.err(`方法 "${f.name}" 需呼叫使用 (不能當作值傳遞)`);
+      return f;
+    }
     let h = f; const args = [];
     while (h.t === 'app') { args.unshift(h.a); h = h.f; }
+    if (h.t === 'var' && h.name === 'apply' && !this.defs.has('apply')) {
+      if (args.length !== 2) this.err(`apply 需要恰 2 個參數 (apply f xs)，得到 ${args.length} 個`);
+      return { t: 'apply', f: args[0], lst: args[1] };
+    }
     if (h.t === 'var' && h.name === 'pure' && this.doMonad) return this.buildPureCall(this.doMonad, args);
     if (h.t === 'var' && this.methodOf.has(h.name)) return this.buildMethodCall(h.name, args);
     return f;
@@ -879,7 +960,7 @@ class Parser {
       const nm = strip(raw);
       if (this.indCtors.has(C(nm))) return vr(C(nm));
       this.bakedUndeclared(nm);
-      if (/^[A-Z]/.test(nm)) this.err(`未知建構子 "${nm}" (inductive 宣告了嗎?)`);
+      if (/^\p{Lu}/u.test(nm)) this.err(`未知建構子 "${nm}" (inductive 宣告了嗎?)`);
       if (RESERVED_VAR.has(nm)) this.err(`"${t.v}" 不可為變數`);
       return vr(nm);
     }
@@ -890,6 +971,16 @@ class Parser {
     if (t.k === 'op') {
       if (t.v === '(') {
         if (this.isOp(')')) { this.next(); return { t: 'nil' }; }
+        const ot = this.peek();                              // (+) 運算子 section
+        if (ot && ot.k === 'op' && SECT_OPS.has(ot.v)) {
+          this.next(); this.expectOp(')');
+          const a = tmp('s'), b = tmp('s'), va = vr(a), vb = vr(b);
+          const body = ot.v === '/' ? { t: 'app', f: { t: 'app', f: vr('quotient'), a: va }, a: vb }
+            : ot.v === '-' ? this.natSub(va, vb)
+            : { t: 'binop', op: ot.v, l: va, r: vb };
+          return { t: 'lam', param: { p: 'var', name: a },
+            body: { t: 'lam', param: { p: 'var', name: b }, body } };
+        }
         const e = this.parseNamedOrExpr();
         if (this.isOp(',')) {
           const items = [e];
@@ -1009,7 +1100,7 @@ class Parser {
         return { p: 'ctor', name: C(nm), args: this.patArgs() };
       }
       this.bakedUndeclared(nm);
-      if (/^[A-Z]/.test(nm)) this.err(`未知建構子 "${nm}"`);
+      if (/^\p{Lu}/u.test(nm)) this.err(`未知建構子 "${nm}"`);
       this.next();
       if (this.startsPatAtom()) this.err(`未知建構子 "${raw}" (小寫建構子需先宣告)`);
       if (RESERVED_VAR.has(nm)) this.err(`"${nm}" 不可為 pattern`);
@@ -1032,7 +1123,10 @@ class Parser {
     if (segs.length > 1) {
       if (this.structCtors.has(C(full))) return C(full);
       if (this.indCtors.has(C(short))) return C(short);
-      this.err(`未知建構子 "${raw}" (p.x 點記法不支援；structure 請寫完整 Point.mk)`);
+      const cands = [...this.projections].filter(p => strip(p) === short);
+      this.err(`未知建構子 "${raw}"` + (cands.length
+        ? ` (是否有名為 ${cands.join('、')} 的投影？p.x 點記法不支援)`
+        : ` (p.x 點記法不支援；structure 請寫完整 Point.mk)`));
     }
     const key = C(short);
     if (this.indCtors.has(key)) return key;
@@ -1057,7 +1151,7 @@ class Parser {
       if (nm === '_') return { p: 'wild' };
       if (this.indCtors.has(C(nm))) return { p: 'ctor', name: C(nm), args: [] };
       this.bakedUndeclared(nm);
-      if (/^[A-Z]/.test(nm)) this.err(`未知建構子 "${raw}"`);
+      if (/^\p{Lu}/u.test(nm)) this.err(`未知建構子 "${raw}"`);
       if (RESERVED_VAR.has(nm)) this.err(`"${nm}" 不可為 pattern`);
       return { p: 'var', name: nm };
     }
@@ -1113,7 +1207,7 @@ function prescanCtors(toks) {                                // 先掃建構子�
   return { ind, struct, at };
 }
 
-function toScheme(src) {
+function parse(src) {                                            // 回傳 items，供 CLI 警告用
   gid = 0;
   const preParser = new Parser(tokenize(LEAN_PRELUDE),
     { ind: new Set(BAKED_CTORS), struct: new Set() }, { allowDunder: true });
@@ -1124,7 +1218,23 @@ function toScheme(src) {
   const parser = new Parser(toks, presc, { reservedDefs: reserved });
   for (const n of reserved) parser.defs.add(n);      // prelude 名 (含 UInt32.add) 可解析
   const items = parser.parseProgram();
+  return { items, pre };
+}
+function warnMain(items) {
+  const mains = items.filter(it => it.t === 'def' && it.name === 'main');
+  if (!mains.length) console.error('警告: 沒有 main（不會自動執行任何事）');
+  else if ((mains[mains.length - 1].nparams || 0) > 0)
+    console.error('警告: main 帶參數不會自動執行');
+}
+function toScheme(src) {
+  const { items, pre } = parse(src);
   return new mlc.Desugar().program(assembleProgram(items, pre));
+}
+function warnMain(items) {
+  const mains = items.filter(it => it.t === 'def' && it.name === 'main');
+  if (!mains.length) console.error('警告: 沒有 main（不會自動執行任何事）');
+  else if ((mains[mains.length - 1].nparams || 0) > 0)
+    console.error('警告: main 帶參數不會自動執行');
 }
 
 /* 內建 prelude (Lean 寫成，同一 parser 解析；__ 前綴保留給它) */
@@ -1245,7 +1355,7 @@ function assembleProgram(items, pre) {
   return out;
 }
 function compile(src) { return lispc.compile(toScheme(src)); }
-module.exports = { compile, toScheme, tokenize };
+module.exports = { compile, toScheme, tokenize, parse };
 
 /* ─────────── CLI ─────────── */
 if (require.main === module) {
@@ -1257,6 +1367,11 @@ if (require.main === module) {
   try {
     const src = fs.readFileSync(input, 'utf8');
     if (args.includes('--scheme')) process.stdout.write(toScheme(src));
-    else { const bc = compile(src); if (output === '-') process.stdout.write(bc); else { fs.writeFileSync(output, bc); console.error(`已編譯 ${input} -> ${output}`); } }
+    else {
+      const { items, pre } = parse(src);
+      warnMain(items);
+      const bc = lispc.compile(new mlc.Desugar().program(assembleProgram(items, pre)));
+      if (output === '-') process.stdout.write(bc); else { fs.writeFileSync(output, bc); console.error(`已編譯 ${input} -> ${output}`); }
+    }
   } catch (e) { console.error('編譯錯誤: ' + e.message); process.exit(1); }
 }

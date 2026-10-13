@@ -903,7 +903,7 @@ function runBytes(bytes, progArgs = []) {
       case E_UNBOUND: msg = '未定義的變數: ' + meta.names[a]; break;
       case E_SET_UNBOUND: msg = 'set!: 未定義的變數: ' + meta.names[a]; break;
       case E_ARITY: { const f = meta.funcs[a]; msg = `${f.name}: 參數個數錯誤 (需要 ${f.params}${f.rest ? '+' : ''}，得到 ${b})`; break; }
-      case E_NOTFN: msg = '不是可呼叫的物件: ' + toStr(a, true); break;
+      case E_NOTFN: msg = a === VOID ? '不是可呼叫的物件 (前一個呼叫回傳了空值？)' : '不是可呼叫的物件: ' + toStr(a, true); break;
       case E_OOM: msg = '記憶體不足 (heap 沒有 GC)'; break;
       case E_HSTK: msg = '例外處理器堆疊錯誤 (太多 TRY 或 UNTRY 不平衡)'; break;
       case E_APPLY: msg = 'apply: 第二個參數必須是 proper list (且不超過 256 個)'; break;

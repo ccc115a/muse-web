@@ -24,6 +24,7 @@
 | v2.3 | 字串/`Char` 完整化、`UInt*` wraparound prim、IO 擴充（argv/exit/readLine） | ✅ 完成 |
 | v2.4 | 標準函式庫起步：`Option`/`Except`/`List` 高階函式（Lean 語面 prelude）+ `Monad` + `do[M]` | ✅ 完成 |
 | v2.5 | SUBSET.md 定版 + P0 語面缺口（attribute/修飾詞/mutual/具名參數/sorry/have/hex/set_option） | ✅ 完成 |
+| v2.6 | 語法缺陷修復批（let rec/緊貼負號/unicode/`1_000`/section/apply/訊息品質） | ✅ 完成 |
 | 2.P | 證明側另開 track（小 kernel + `Decidable` 反射），2.x 主線不碰 |
 
 順序理由：Array 是 Lean 程式（vs ML 線）最有感的缺口，且是 `List` 之外第一個

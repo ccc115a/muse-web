@@ -307,7 +307,7 @@ function run(funcs) {
         if (frames.length === 0) { code = null; return; }
         ({ code, pc, env } = frames.pop());
       }
-    } else doThrow('不是可呼叫的物件: ' + toStr(f, true));
+    } else doThrow(f === VOID ? '不是可呼叫的物件 (前一個呼叫回傳了空值？)' : '不是可呼叫的物件: ' + toStr(f, true));
   };
 
   for (;;) {

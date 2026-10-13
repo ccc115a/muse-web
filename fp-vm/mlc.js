@@ -130,6 +130,9 @@ class Parser {
       this.next();
       const val = params.reduceRight((b, p) => ({ t: 'lam', param: p, body: b }), this.parseExpr());
       if (this.isKw('in')) { this.p = saved; return { t: 'expr', e: this.parseExpr() }; }  // 其實是 let...in 運算式
+      if (['apply', 'throw', 'quote', 'lambda', 'begin', 'cond', 'and', 'or',
+           'when', 'unless', 'define', 'set!'].includes(name))
+        this.err(`"${name}" 為保留字，不可定義 (特殊形)`);
       return { t: 'def', name, val, rec };
     }
     return { t: 'expr', e: this.parseExpr() };
@@ -489,6 +492,7 @@ class Desugar {
       case 'if': return ['if', this.ex(n.c), this.ex(n.a), this.ex(n.b)];
       case 'begin': return ['begin', ...n.items.map(x => this.ex(x))];
       case 'call': return [this.ex(n.f), ...n.args.map(a => this.ex(a))];   // 直接多參呼叫 (給 prim 用；不可 curry)
+      case 'apply': return ['apply', this.ex(n.f), this.ex(n.lst)];   // 動態套用 (lispc APPLY)
       case 'sym': return ['quote', n.name];                          // 符號字面量 (給 class/tag 用)
       case 'try': return ['try', this.ex(n.body), ['catch', n.var, this.ex(n.handler)]];
       case 'let': return this.exLet(n);
