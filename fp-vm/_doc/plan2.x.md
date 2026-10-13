@@ -22,6 +22,7 @@
 | v2.1 | Array（原生 TAG）+ structure（純 desugar） | ✅ 完成 |
 | v2.2 | typeclass 基礎：`class`/`instance` 字典傳遞 + 簡單解析，`deriving BEq/Repr` | ✅ 完成 |
 | v2.3 | 字串/`Char` 完整化、`UInt*` wraparound prim、IO 擴充（argv/exit/readLine） | ✅ 完成 |
+| v2.4 | 標準函式庫起步：`Option`/`Except`/`List` 高階函式（Lean 語面 prelude）+ `Monad` + `do[M]` | ✅ 完成 |
 | v2.4 | 標準函式庫起步：`Option`/`Except`/`List` 高階函式（Lean 語面 prelude） |
 | 2.P | 證明側另開 track（小 kernel + `Decidable` 反射），2.x 主線不碰 |
 

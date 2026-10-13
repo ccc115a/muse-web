@@ -130,6 +130,8 @@ const strip = dotted => {                                        // NatList.cons
   return s[s.length - 1];
 };
 const C = n => 'ctor/' + n;                                      // 建構子內部名 (避開 nil 等保留字)
+/* stdlib 函式引用的標準 ctor 標籤 (型別由用戶宣告，這裡只供解析) */
+const BAKED_CTORS = ['ctor/none', 'ctor/some', 'ctor/ok', 'ctor/err', 'ctor/nil', 'ctor/cons'];
 /* 方法名不可佔用的 prim 名 (否則呼叫被攔截改道，無聲劫持) */
 const RESERVED_METHOD = new Set(['car', 'cdr', 'cadr', 'cddr', 'caddr', 'cons', 'list',
   'length', 'append', 'reverse', 'display', 'write', 'newline', 'error', 'apply',
@@ -167,7 +169,7 @@ class Parser {
     this.defs = new Set();                                           // 已定義名 (碰撞檢查)
     this.reservedDefs = opts.reservedDefs || null;                   // 內建 prelude 名 (禁止覆寫)
     this.allowDunder = !!opts.allowDunder;                           // 內建 prelude 才可定義 __ 名
-    this.lastLine = 1; this.appBaseCol = null;
+    this.lastLine = 1; this.appBaseCol = null; this.doMonad = null;
   }
   peek(skipNL = true) {
     let q = this.p;
@@ -416,7 +418,7 @@ class Parser {
     this.appBaseCol = outerBase;
     const missing = methods.filter(m => !seen.has(m));
     if (missing.length) this.err(`instance 缺少方法實作: ${missing.join(', ')}`);
-    return { t: 'instance', cls, tags, methods, impls };
+    return { t: 'instance', cls, ty, tags, methods, impls };
   }
 
   typeTags(ty) {                                                  // Type 名 -> 內部 ctor 標籤列
@@ -621,7 +623,16 @@ class Parser {
 
   parseDo() {
     this.next();                                                 // do
-    const outerBase = this.appBaseCol;
+    let monad = null;
+    if (this.isOp('[')) {                                        // do[M]
+      this.next();
+      const mt = this.peek();
+      if (!mt || mt.k !== 'id') this.err('do[...] 需要型別名');
+      monad = mt.v; this.next();
+      this.expectOp(']');
+    }
+    const outerBase = this.appBaseCol, outerMonad = this.doMonad;
+    this.doMonad = monad;
     const acts = [];
     for (;;) {
       while (this.raw() && (this.raw().k === 'nl' || (this.raw().k === 'op' && this.raw().v === ';'))) this.p++;
@@ -632,6 +643,11 @@ class Parser {
       if (t.k === 'kw' && (TOPKW.has(t.v) || PROOFKW.has(t.v))) break;
       if (t.k === 'directive') break;
       this.appBaseCol = t.col;                                   // 並置跨行需比動作縮排深
+      if (monad && t.k === 'kw' && t.v === 'return') {           // return e 即 pure e
+        this.p++;
+        acts.push({ k: 'return', val: this.parseExpr() });
+        continue;
+      }
       if (t.k === 'kw' && t.v === 'let') {                       // let x := e / let x ← e
         this.p++;
         const nm = this.checkVar(strip(this.expectId()));
@@ -647,7 +663,8 @@ class Parser {
         if (this.t[q] && this.t[q].k === 'larrow') {
           const nm = this.checkVar(strip(t.v));
           this.p = q + 1;
-          acts.push({ k: 'let', name: nm, val: this.parseExpr() });
+          acts.push(monad ? { k: 'bind', name: nm, val: this.parseExpr() }
+                          : { k: 'let', name: nm, val: this.parseExpr() });
           continue;
         }
       }
@@ -655,6 +672,8 @@ class Parser {
     }
     if (!acts.length) this.err('do 需要至少一個動作');
     this.appBaseCol = outerBase;
+    this.doMonad = outerMonad;
+    if (monad) return this.foldMonadic(monad, acts);
     let body = acts[acts.length - 1].k === 'let'
       ? { t: 'app', f: vr('println'), a: { t: 'nil' } }          // 尾是 let: 補 unit
       : acts[acts.length - 1].val;
@@ -663,6 +682,25 @@ class Parser {
         ? { t: 'let', pat: { p: 'var', name: acts[i].name }, val: acts[i].val, body }
         : { t: 'begin', items: [acts[i].val, body] };
     if (acts.length === 1 && acts[0].k === 'expr') return acts[0].val;
+    return body;
+  }
+
+  foldMonadic(monad, acts) {
+    const last = acts[acts.length - 1];
+    if (last.k !== 'expr' && last.k !== 'return')
+      this.err('do[...] 結尾須為運算式 (用 return x 收尾)');
+    let body = last.k === 'return' ? this.buildPureCall(monad, [last.val]) : last.val;
+    for (let i = acts.length - 2; i >= 0; i--) {
+      const a = acts[i];
+      if (a.k === 'let')
+        body = { t: 'let', pat: { p: 'var', name: a.name }, val: a.val, body };
+      else if (a.k === 'bind')
+        body = this.buildBind(a.val, { p: 'var', name: a.name }, body);
+      else if (a.k === 'return')
+        body = this.buildBind(this.buildPureCall(monad, [a.val]), { p: 'wild' }, body);
+      else
+        body = this.buildBind(a.val, { p: 'wild' }, body);
+    }
     return body;
   }
 
@@ -724,19 +762,43 @@ class Parser {
     if (nArgs === 0) return f;
     let h = f; const args = [];
     while (h.t === 'app') { args.unshift(h.a); h = h.f; }
+    if (h.t === 'var' && h.name === 'pure' && this.doMonad) return this.buildPureCall(this.doMonad, args);
     if (h.t === 'var' && this.methodOf.has(h.name)) return this.buildMethodCall(h.name, args);
     return f;
+  }
+
+  findExpr(clsSym, tagExpr) {                                 // (__tc-find __tcTable 'cls tag)
+    return { t: 'app', f: { t: 'app', f: { t: 'app', f: vr('__tcFind'), a: vr('__tcTable') },
+      a: { t: 'sym', name: clsSym } }, a: tagExpr };
+  }
+  extractMethod(find, idx) {                                  // dict 第 idx 個方法
+    for (let i = 0; i < idx; i++) find = { t: 'app', f: vr('cdr'), a: find };
+    return { t: 'app', f: vr('car'), a: find };
+  }
+  buildPureCall(monadType, args) {                            // do[M] 的 return/pure: 查 (Monad, M) 列
+    if (!this.methodOf.has('pure')) this.err('pure 未定義 (需 class Monad)');
+    const { idx } = this.methodOf.get('pure');
+    let call = this.extractMethod(this.findExpr('Monad', { t: 'sym', name: monadType }), idx);
+    for (const a of args) call = { t: 'app', f: call, a };
+    return call;
+  }
+  buildBind(scrut, pat, rest) {                               // bind 苦工: 分派首參
+    if (!this.methodOf.has('bind')) this.err('bind 未定義 (需 class Monad)');
+    const { cls, idx } = this.methodOf.get('bind');
+    const t = tmp('m');
+    const fn = this.extractMethod(
+      this.findExpr(cls, { t: 'app', f: vr('__tcTag'), a: vr(t) }), idx);
+    return { t: 'let', pat: { p: 'var', name: t }, val: scrut,
+      body: { t: 'app', f: { t: 'app', f: fn, a: vr(t) },
+        a: { t: 'lam', param: pat, body: rest } } };
   }
 
   buildMethodCall(name, args) {                               // 方法呼叫: 首參數決定分派
     const { cls, idx } = this.methodOf.get(name);
     const t = tmp('m');
-    let dict = { t: 'app', f: { t: 'app', f: { t: 'app', f: vr('__tcFind'), a: vr('__tcTable') },
-      a: { t: 'sym', name: cls } },
-      a: { t: 'app', f: vr('__tcTag'), a: vr(t) } };
-    for (let i = 0; i < idx; i++) dict = { t: 'app', f: vr('cdr'), a: dict };
-    dict = { t: 'app', f: vr('car'), a: dict };
-    let call = { t: 'app', f: dict, a: vr(t) };
+    const fn = this.extractMethod(
+      this.findExpr(cls, { t: 'app', f: vr('__tcTag'), a: vr(t) }), idx);
+    let call = { t: 'app', f: fn, a: vr(t) };
     for (const a of args.slice(1)) call = { t: 'app', f: call, a };
     return { t: 'let', pat: { p: 'var', name: t }, val: args[0], body: call };
   }
@@ -969,11 +1031,14 @@ function prescanCtors(toks) {                                // 先掃建構子�
 
 function toScheme(src) {
   gid = 0;
-  const preParser = new Parser(tokenize(LEAN_PRELUDE), { ind: new Set(), struct: new Set() }, { allowDunder: true });
+  const preParser = new Parser(tokenize(LEAN_PRELUDE),
+    { ind: new Set(BAKED_CTORS), struct: new Set() }, { allowDunder: true });
   const pre = preParser.parseProgram().filter(it => it.t === 'def');
   const reserved = new Set(pre.map(d => d.name));
   const toks = tokenize(src);
-  const parser = new Parser(toks, prescanCtors(toks), { reservedDefs: reserved });
+  const presc = prescanCtors(toks);
+  for (const t of BAKED_CTORS) presc.ind.add(t);      // stdlib 引用解析 (型別用戶宣告)
+  const parser = new Parser(toks, presc, { reservedDefs: reserved });
   for (const n of reserved) parser.defs.add(n);      // prelude 名 (含 UInt32.add) 可解析
   const items = parser.parseProgram();
   return new mlc.Desugar().program(assembleProgram(items, pre));
@@ -1044,6 +1109,36 @@ def uNot (w : Nat) (a : Nat) : Nat := uMask w - uNorm w a
 def uToNat (w : Nat) (a : Nat) : Nat := uNorm w a
 def uFromNat (w : Nat) (a : Nat) : Nat := uNorm w a
 
+def List.map (f : Nat) (xs : Nat) : Nat :=
+  match xs with | nil => nil | cons x xs => cons (f x) (List.map f xs)
+def List.filter (f : Nat) (xs : Nat) : Nat :=
+  match xs with | nil => nil | cons x xs => if f x then cons x (List.filter f xs) else List.filter f xs
+def List.foldl (f : Nat) (acc : Nat) (xs : Nat) : Nat :=
+  match xs with | nil => acc | cons x xs => List.foldl f (f acc x) xs
+def List.length (xs : Nat) : Nat :=
+  match xs with | nil => 0 | cons _ xs => List.length xs + 1
+def List.append (xs : Nat) (ys : Nat) : Nat :=
+  match xs with | nil => ys | cons x xs => cons x (List.append xs ys)
+def List.reverseAux (xs : Nat) (acc : Nat) : Nat :=
+  match xs with | nil => acc | cons x xs => List.reverseAux xs (cons x acc)
+def List.reverse (xs : Nat) : Nat := List.reverseAux xs nil
+
+def Option.map (f : Nat) (o : Nat) : Nat :=
+  match o with | none => none | some x => some (f x)
+def Option.bind (o : Nat) (f : Nat) : Nat :=
+  match o with | none => none | some x => f x
+def Option.getD (o : Nat) (d : Nat) : Nat :=
+  match o with | none => d | some x => x
+
+def Except.map (f : Nat) (e : Nat) : Nat :=
+  match e with | ok x => ok (f x) | err e => err e
+def Except.bind (e : Nat) (f : Nat) : Nat :=
+  match e with | ok x => f x | err e => err e
+def Except.getD (e : Nat) (d : Nat) : Nat :=
+  match e with | ok x => x | err e => d
+def Except.toOption (e : Nat) : Nat :=
+  match e with | ok x => some x | err _ => none
+
 ${uintPrelude}
 `;
 
@@ -1059,6 +1154,8 @@ function assembleProgram(items, pre) {
     const dict = { t: 'call', f: vr('list'), args: inst.methods.map(m => inst.impls.get(m)) };
     for (const tg of inst.tags)
       rows.push({ t: 'call', f: vr('list'), args: [{ t: 'sym', name: inst.cls }, { t: 'sym', name: tg }, dict] });
+    if (inst.cls === 'Monad')                                  // pure 查表列 (do[M] 的 return)
+      rows.push({ t: 'call', f: vr('list'), args: [{ t: 'sym', name: 'Monad' }, { t: 'sym', name: inst.ty }, dict] });
   }
   out.push({ t: 'def', name: '__tcTable', rec: false, val: { t: 'call', f: vr('list'), args: rows } });
   out.push(...rest.slice(2));

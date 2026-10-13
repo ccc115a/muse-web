@@ -75,167 +75,209 @@
   CLOSURE uFromNat#60
   DEF uFromNat
   POP
-  CLOSURE UInt8.add#62
+  CLOSURE List.map#62
+  DEF List.map
+  POP
+  CLOSURE List.filter#66
+  DEF List.filter
+  POP
+  CLOSURE List.foldl#70
+  DEF List.foldl
+  POP
+  CLOSURE List.length#75
+  DEF List.length
+  POP
+  CLOSURE List.append#78
+  DEF List.append
+  POP
+  CLOSURE List.reverseAux#82
+  DEF List.reverseAux
+  POP
+  CLOSURE List.reverse#86
+  DEF List.reverse
+  POP
+  CLOSURE Option.map#87
+  DEF Option.map
+  POP
+  CLOSURE Option.bind#91
+  DEF Option.bind
+  POP
+  CLOSURE Option.getD#95
+  DEF Option.getD
+  POP
+  CLOSURE Except.map#99
+  DEF Except.map
+  POP
+  CLOSURE Except.bind#104
+  DEF Except.bind
+  POP
+  CLOSURE Except.getD#109
+  DEF Except.getD
+  POP
+  CLOSURE Except.toOption#114
+  DEF Except.toOption
+  POP
+  CLOSURE UInt8.add#117
   DEF UInt8.add
   POP
-  CLOSURE UInt8.sub#64
+  CLOSURE UInt8.sub#119
   DEF UInt8.sub
   POP
-  CLOSURE UInt8.mul#66
+  CLOSURE UInt8.mul#121
   DEF UInt8.mul
   POP
-  CLOSURE UInt8.div#68
+  CLOSURE UInt8.div#123
   DEF UInt8.div
   POP
-  CLOSURE UInt8.mod#70
+  CLOSURE UInt8.mod#125
   DEF UInt8.mod
   POP
-  CLOSURE UInt8.shl#72
+  CLOSURE UInt8.shl#127
   DEF UInt8.shl
   POP
-  CLOSURE UInt8.shr#74
+  CLOSURE UInt8.shr#129
   DEF UInt8.shr
   POP
-  CLOSURE UInt8.and#76
+  CLOSURE UInt8.and#131
   DEF UInt8.and
   POP
-  CLOSURE UInt8.or#78
+  CLOSURE UInt8.or#133
   DEF UInt8.or
   POP
-  CLOSURE UInt8.xor#80
+  CLOSURE UInt8.xor#135
   DEF UInt8.xor
   POP
-  CLOSURE UInt8.not#82
+  CLOSURE UInt8.not#137
   DEF UInt8.not
   POP
-  CLOSURE UInt8.toNat#83
+  CLOSURE UInt8.toNat#138
   DEF UInt8.toNat
   POP
-  CLOSURE UInt8.fromNat#84
+  CLOSURE UInt8.fromNat#139
   DEF UInt8.fromNat
   POP
-  CLOSURE UInt16.add#85
+  CLOSURE UInt16.add#140
   DEF UInt16.add
   POP
-  CLOSURE UInt16.sub#87
+  CLOSURE UInt16.sub#142
   DEF UInt16.sub
   POP
-  CLOSURE UInt16.mul#89
+  CLOSURE UInt16.mul#144
   DEF UInt16.mul
   POP
-  CLOSURE UInt16.div#91
+  CLOSURE UInt16.div#146
   DEF UInt16.div
   POP
-  CLOSURE UInt16.mod#93
+  CLOSURE UInt16.mod#148
   DEF UInt16.mod
   POP
-  CLOSURE UInt16.shl#95
+  CLOSURE UInt16.shl#150
   DEF UInt16.shl
   POP
-  CLOSURE UInt16.shr#97
+  CLOSURE UInt16.shr#152
   DEF UInt16.shr
   POP
-  CLOSURE UInt16.and#99
+  CLOSURE UInt16.and#154
   DEF UInt16.and
   POP
-  CLOSURE UInt16.or#101
+  CLOSURE UInt16.or#156
   DEF UInt16.or
   POP
-  CLOSURE UInt16.xor#103
+  CLOSURE UInt16.xor#158
   DEF UInt16.xor
   POP
-  CLOSURE UInt16.not#105
+  CLOSURE UInt16.not#160
   DEF UInt16.not
   POP
-  CLOSURE UInt16.toNat#106
+  CLOSURE UInt16.toNat#161
   DEF UInt16.toNat
   POP
-  CLOSURE UInt16.fromNat#107
+  CLOSURE UInt16.fromNat#162
   DEF UInt16.fromNat
   POP
-  CLOSURE UInt32.add#108
+  CLOSURE UInt32.add#163
   DEF UInt32.add
   POP
-  CLOSURE UInt32.sub#110
+  CLOSURE UInt32.sub#165
   DEF UInt32.sub
   POP
-  CLOSURE UInt32.mul#112
+  CLOSURE UInt32.mul#167
   DEF UInt32.mul
   POP
-  CLOSURE UInt32.div#114
+  CLOSURE UInt32.div#169
   DEF UInt32.div
   POP
-  CLOSURE UInt32.mod#116
+  CLOSURE UInt32.mod#171
   DEF UInt32.mod
   POP
-  CLOSURE UInt32.shl#118
+  CLOSURE UInt32.shl#173
   DEF UInt32.shl
   POP
-  CLOSURE UInt32.shr#120
+  CLOSURE UInt32.shr#175
   DEF UInt32.shr
   POP
-  CLOSURE UInt32.and#122
+  CLOSURE UInt32.and#177
   DEF UInt32.and
   POP
-  CLOSURE UInt32.or#124
+  CLOSURE UInt32.or#179
   DEF UInt32.or
   POP
-  CLOSURE UInt32.xor#126
+  CLOSURE UInt32.xor#181
   DEF UInt32.xor
   POP
-  CLOSURE UInt32.not#128
+  CLOSURE UInt32.not#183
   DEF UInt32.not
   POP
-  CLOSURE UInt32.toNat#129
+  CLOSURE UInt32.toNat#184
   DEF UInt32.toNat
   POP
-  CLOSURE UInt32.fromNat#130
+  CLOSURE UInt32.fromNat#185
   DEF UInt32.fromNat
   POP
-  CLOSURE UInt64.add#131
+  CLOSURE UInt64.add#186
   DEF UInt64.add
   POP
-  CLOSURE UInt64.sub#133
+  CLOSURE UInt64.sub#188
   DEF UInt64.sub
   POP
-  CLOSURE UInt64.mul#135
+  CLOSURE UInt64.mul#190
   DEF UInt64.mul
   POP
-  CLOSURE UInt64.div#137
+  CLOSURE UInt64.div#192
   DEF UInt64.div
   POP
-  CLOSURE UInt64.mod#139
+  CLOSURE UInt64.mod#194
   DEF UInt64.mod
   POP
-  CLOSURE UInt64.shl#141
+  CLOSURE UInt64.shl#196
   DEF UInt64.shl
   POP
-  CLOSURE UInt64.shr#143
+  CLOSURE UInt64.shr#198
   DEF UInt64.shr
   POP
-  CLOSURE UInt64.and#145
+  CLOSURE UInt64.and#200
   DEF UInt64.and
   POP
-  CLOSURE UInt64.or#147
+  CLOSURE UInt64.or#202
   DEF UInt64.or
   POP
-  CLOSURE UInt64.xor#149
+  CLOSURE UInt64.xor#204
   DEF UInt64.xor
   POP
-  CLOSURE UInt64.not#151
+  CLOSURE UInt64.not#206
   DEF UInt64.not
   POP
-  CLOSURE UInt64.toNat#152
+  CLOSURE UInt64.toNat#207
   DEF UInt64.toNat
   POP
-  CLOSURE UInt64.fromNat#153
+  CLOSURE UInt64.fromNat#208
   DEF UInt64.fromNat
   POP
   LOAD list
   CALL 0
   DEF __tcTable
   POP
-  CLOSURE double#154
+  CLOSURE double#209
   DEF double
   POP
   LOAD println
@@ -246,7 +288,7 @@
   CONST {"big":"42"}
   CALL 1
   POP
-  CLOSURE lambda#155
+  CLOSURE lambda#210
   LOAD *
   CONST {"big":"6"}
   CONST {"big":"7"}
@@ -872,394 +914,1147 @@ L26:
   CALL 1
   LOAD a
   TAILCALL 1
-.func UInt8.add#62 a
+.func List.map#62 f
   CLOSURE lambda#63
   RET
-.func lambda#63 b
-  LOAD uAdd
-  CONST {"big":"8"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
+.func lambda#63 xs
+  CLOSURE lambda#64
+  LOAD xs
   TAILCALL 1
-.func UInt8.sub#64 a
-  CLOSURE lambda#65
+.func lambda#64 __m0
+  LOAD eq?
+  LOAD __m0
+  CONST {"sym":"ctor/nil"}
+  CALL 2
+  JF L27
+  LOAD ctor/nil
   RET
-.func lambda#65 b
-  LOAD uSub
-  CONST {"big":"8"}
+L27:
+  LOAD pair?
+  LOAD __m0
   CALL 1
-  LOAD a
+  JF L29
+  LOAD eq?
+  LOAD car
+  LOAD __m0
   CALL 1
-  LOAD b
+  CONST {"sym":"ctor/cons"}
+  CALL 2
+  JMP L30
+L29:
+  CONST false
+L30:
+  JF L28
+  CLOSURE lambda#65
+  LOAD car
+  LOAD cdr
+  LOAD __m0
+  CALL 1
+  CALL 1
+  LOAD car
+  LOAD cdr
+  LOAD cdr
+  LOAD __m0
+  CALL 1
+  CALL 1
+  CALL 1
+  TAILCALL 2
+L28:
+  LOAD error
+  CONST "Match_failure"
   TAILCALL 1
-.func UInt8.mul#66 a
+.func lambda#65 x xs
+  LOAD ctor/cons
+  LOAD f
+  LOAD x
+  CALL 1
+  CALL 1
+  LOAD List.map
+  LOAD f
+  CALL 1
+  LOAD xs
+  CALL 1
+  TAILCALL 1
+.func List.filter#66 f
   CLOSURE lambda#67
   RET
-.func lambda#67 b
-  LOAD uMul
-  CONST {"big":"8"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
+.func lambda#67 xs
+  CLOSURE lambda#68
+  LOAD xs
   TAILCALL 1
-.func UInt8.div#68 a
-  CLOSURE lambda#69
+.func lambda#68 __m1
+  LOAD eq?
+  LOAD __m1
+  CONST {"sym":"ctor/nil"}
+  CALL 2
+  JF L31
+  LOAD ctor/nil
   RET
-.func lambda#69 b
-  LOAD uDiv
-  CONST {"big":"8"}
+L31:
+  LOAD pair?
+  LOAD __m1
   CALL 1
-  LOAD a
+  JF L33
+  LOAD eq?
+  LOAD car
+  LOAD __m1
   CALL 1
-  LOAD b
+  CONST {"sym":"ctor/cons"}
+  CALL 2
+  JMP L34
+L33:
+  CONST false
+L34:
+  JF L32
+  CLOSURE lambda#69
+  LOAD car
+  LOAD cdr
+  LOAD __m1
+  CALL 1
+  CALL 1
+  LOAD car
+  LOAD cdr
+  LOAD cdr
+  LOAD __m1
+  CALL 1
+  CALL 1
+  CALL 1
+  TAILCALL 2
+L32:
+  LOAD error
+  CONST "Match_failure"
   TAILCALL 1
-.func UInt8.mod#70 a
+.func lambda#69 x xs
+  LOAD f
+  LOAD x
+  CALL 1
+  JF L35
+  LOAD ctor/cons
+  LOAD x
+  CALL 1
+  LOAD List.filter
+  LOAD f
+  CALL 1
+  LOAD xs
+  CALL 1
+  TAILCALL 1
+L35:
+  LOAD List.filter
+  LOAD f
+  CALL 1
+  LOAD xs
+  TAILCALL 1
+.func List.foldl#70 f
   CLOSURE lambda#71
   RET
-.func lambda#71 b
-  LOAD uMod
-  CONST {"big":"8"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
-  TAILCALL 1
-.func UInt8.shl#72 a
+.func lambda#71 acc
+  CLOSURE lambda#72
+  RET
+.func lambda#72 xs
   CLOSURE lambda#73
-  RET
-.func lambda#73 b
-  LOAD uShl
-  CONST {"big":"8"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
+  LOAD xs
   TAILCALL 1
-.func UInt8.shr#74 a
-  CLOSURE lambda#75
+.func lambda#73 __m2
+  LOAD eq?
+  LOAD __m2
+  CONST {"sym":"ctor/nil"}
+  CALL 2
+  JF L36
+  LOAD acc
   RET
-.func lambda#75 b
-  LOAD uShr
-  CONST {"big":"8"}
+L36:
+  LOAD pair?
+  LOAD __m2
   CALL 1
-  LOAD a
+  JF L38
+  LOAD eq?
+  LOAD car
+  LOAD __m2
   CALL 1
-  LOAD b
+  CONST {"sym":"ctor/cons"}
+  CALL 2
+  JMP L39
+L38:
+  CONST false
+L39:
+  JF L37
+  CLOSURE lambda#74
+  LOAD car
+  LOAD cdr
+  LOAD __m2
+  CALL 1
+  CALL 1
+  LOAD car
+  LOAD cdr
+  LOAD cdr
+  LOAD __m2
+  CALL 1
+  CALL 1
+  CALL 1
+  TAILCALL 2
+L37:
+  LOAD error
+  CONST "Match_failure"
   TAILCALL 1
-.func UInt8.and#76 a
+.func lambda#74 x xs
+  LOAD List.foldl
+  LOAD f
+  CALL 1
+  LOAD f
+  LOAD acc
+  CALL 1
+  LOAD x
+  CALL 1
+  CALL 1
+  LOAD xs
+  TAILCALL 1
+.func List.length#75 xs
+  CLOSURE lambda#76
+  LOAD xs
+  TAILCALL 1
+.func lambda#76 __m3
+  LOAD eq?
+  LOAD __m3
+  CONST {"sym":"ctor/nil"}
+  CALL 2
+  JF L40
+  CONST {"big":"0"}
+  RET
+L40:
+  LOAD pair?
+  LOAD __m3
+  CALL 1
+  JF L42
+  LOAD eq?
+  LOAD car
+  LOAD __m3
+  CALL 1
+  CONST {"sym":"ctor/cons"}
+  CALL 2
+  JMP L43
+L42:
+  CONST false
+L43:
+  JF L41
   CLOSURE lambda#77
-  RET
-.func lambda#77 b
-  LOAD uAnd
-  CONST {"big":"8"}
+  LOAD car
+  LOAD cdr
+  LOAD cdr
+  LOAD __m3
   CALL 1
-  LOAD a
   CALL 1
-  LOAD b
+  CALL 1
   TAILCALL 1
-.func UInt8.or#78 a
+L41:
+  LOAD error
+  CONST "Match_failure"
+  TAILCALL 1
+.func lambda#77 xs
+  LOAD +
+  LOAD List.length
+  LOAD xs
+  CALL 1
+  CONST {"big":"1"}
+  TAILCALL 2
+.func List.append#78 xs
   CLOSURE lambda#79
   RET
-.func lambda#79 b
-  LOAD uOr
-  CONST {"big":"8"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
+.func lambda#79 ys
+  CLOSURE lambda#80
+  LOAD xs
   TAILCALL 1
-.func UInt8.xor#80 a
+.func lambda#80 __m4
+  LOAD eq?
+  LOAD __m4
+  CONST {"sym":"ctor/nil"}
+  CALL 2
+  JF L44
+  LOAD ys
+  RET
+L44:
+  LOAD pair?
+  LOAD __m4
+  CALL 1
+  JF L46
+  LOAD eq?
+  LOAD car
+  LOAD __m4
+  CALL 1
+  CONST {"sym":"ctor/cons"}
+  CALL 2
+  JMP L47
+L46:
+  CONST false
+L47:
+  JF L45
   CLOSURE lambda#81
+  LOAD car
+  LOAD cdr
+  LOAD __m4
+  CALL 1
+  CALL 1
+  LOAD car
+  LOAD cdr
+  LOAD cdr
+  LOAD __m4
+  CALL 1
+  CALL 1
+  CALL 1
+  TAILCALL 2
+L45:
+  LOAD error
+  CONST "Match_failure"
+  TAILCALL 1
+.func lambda#81 x xs
+  LOAD ctor/cons
+  LOAD x
+  CALL 1
+  LOAD List.append
+  LOAD xs
+  CALL 1
+  LOAD ys
+  CALL 1
+  TAILCALL 1
+.func List.reverseAux#82 xs
+  CLOSURE lambda#83
   RET
-.func lambda#81 b
-  LOAD uXor
-  CONST {"big":"8"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
+.func lambda#83 acc
+  CLOSURE lambda#84
+  LOAD xs
   TAILCALL 1
-.func UInt8.not#82 a
-  LOAD uNot
-  CONST {"big":"8"}
-  CALL 1
-  LOAD a
-  TAILCALL 1
-.func UInt8.toNat#83 a
-  LOAD uToNat
-  CONST {"big":"8"}
-  CALL 1
-  LOAD a
-  TAILCALL 1
-.func UInt8.fromNat#84 a
-  LOAD uFromNat
-  CONST {"big":"8"}
-  CALL 1
-  LOAD a
-  TAILCALL 1
-.func UInt16.add#85 a
-  CLOSURE lambda#86
+.func lambda#84 __m5
+  LOAD eq?
+  LOAD __m5
+  CONST {"sym":"ctor/nil"}
+  CALL 2
+  JF L48
+  LOAD acc
   RET
-.func lambda#86 b
-  LOAD uAdd
-  CONST {"big":"16"}
+L48:
+  LOAD pair?
+  LOAD __m5
   CALL 1
-  LOAD a
+  JF L50
+  LOAD eq?
+  LOAD car
+  LOAD __m5
   CALL 1
-  LOAD b
+  CONST {"sym":"ctor/cons"}
+  CALL 2
+  JMP L51
+L50:
+  CONST false
+L51:
+  JF L49
+  CLOSURE lambda#85
+  LOAD car
+  LOAD cdr
+  LOAD __m5
+  CALL 1
+  CALL 1
+  LOAD car
+  LOAD cdr
+  LOAD cdr
+  LOAD __m5
+  CALL 1
+  CALL 1
+  CALL 1
+  TAILCALL 2
+L49:
+  LOAD error
+  CONST "Match_failure"
   TAILCALL 1
-.func UInt16.sub#87 a
+.func lambda#85 x xs
+  LOAD List.reverseAux
+  LOAD xs
+  CALL 1
+  LOAD ctor/cons
+  LOAD x
+  CALL 1
+  LOAD acc
+  CALL 1
+  TAILCALL 1
+.func List.reverse#86 xs
+  LOAD List.reverseAux
+  LOAD xs
+  CALL 1
+  LOAD ctor/nil
+  TAILCALL 1
+.func Option.map#87 f
   CLOSURE lambda#88
   RET
-.func lambda#88 b
-  LOAD uSub
-  CONST {"big":"16"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
+.func lambda#88 o
+  CLOSURE lambda#89
+  LOAD o
   TAILCALL 1
-.func UInt16.mul#89 a
-  CLOSURE lambda#90
+.func lambda#89 __m6
+  LOAD eq?
+  LOAD __m6
+  CONST {"sym":"ctor/none"}
+  CALL 2
+  JF L52
+  LOAD ctor/none
   RET
-.func lambda#90 b
-  LOAD uMul
-  CONST {"big":"16"}
+L52:
+  LOAD pair?
+  LOAD __m6
   CALL 1
-  LOAD a
+  JF L54
+  LOAD eq?
+  LOAD car
+  LOAD __m6
   CALL 1
-  LOAD b
+  CONST {"sym":"ctor/some"}
+  CALL 2
+  JMP L55
+L54:
+  CONST false
+L55:
+  JF L53
+  CLOSURE lambda#90
+  LOAD car
+  LOAD cdr
+  LOAD __m6
+  CALL 1
+  CALL 1
   TAILCALL 1
-.func UInt16.div#91 a
+L53:
+  LOAD error
+  CONST "Match_failure"
+  TAILCALL 1
+.func lambda#90 x
+  LOAD ctor/some
+  LOAD f
+  LOAD x
+  CALL 1
+  TAILCALL 1
+.func Option.bind#91 o
   CLOSURE lambda#92
   RET
-.func lambda#92 b
-  LOAD uDiv
-  CONST {"big":"16"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
+.func lambda#92 f
+  CLOSURE lambda#93
+  LOAD o
   TAILCALL 1
-.func UInt16.mod#93 a
-  CLOSURE lambda#94
+.func lambda#93 __m7
+  LOAD eq?
+  LOAD __m7
+  CONST {"sym":"ctor/none"}
+  CALL 2
+  JF L56
+  LOAD ctor/none
   RET
-.func lambda#94 b
-  LOAD uMod
-  CONST {"big":"16"}
+L56:
+  LOAD pair?
+  LOAD __m7
   CALL 1
-  LOAD a
+  JF L58
+  LOAD eq?
+  LOAD car
+  LOAD __m7
   CALL 1
-  LOAD b
+  CONST {"sym":"ctor/some"}
+  CALL 2
+  JMP L59
+L58:
+  CONST false
+L59:
+  JF L57
+  CLOSURE lambda#94
+  LOAD car
+  LOAD cdr
+  LOAD __m7
+  CALL 1
+  CALL 1
   TAILCALL 1
-.func UInt16.shl#95 a
+L57:
+  LOAD error
+  CONST "Match_failure"
+  TAILCALL 1
+.func lambda#94 x
+  LOAD f
+  LOAD x
+  TAILCALL 1
+.func Option.getD#95 o
   CLOSURE lambda#96
   RET
-.func lambda#96 b
-  LOAD uShl
-  CONST {"big":"16"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
+.func lambda#96 d
+  CLOSURE lambda#97
+  LOAD o
   TAILCALL 1
-.func UInt16.shr#97 a
-  CLOSURE lambda#98
+.func lambda#97 __m8
+  LOAD eq?
+  LOAD __m8
+  CONST {"sym":"ctor/none"}
+  CALL 2
+  JF L60
+  LOAD d
   RET
-.func lambda#98 b
-  LOAD uShr
-  CONST {"big":"16"}
+L60:
+  LOAD pair?
+  LOAD __m8
   CALL 1
-  LOAD a
+  JF L62
+  LOAD eq?
+  LOAD car
+  LOAD __m8
   CALL 1
-  LOAD b
+  CONST {"sym":"ctor/some"}
+  CALL 2
+  JMP L63
+L62:
+  CONST false
+L63:
+  JF L61
+  CLOSURE lambda#98
+  LOAD car
+  LOAD cdr
+  LOAD __m8
+  CALL 1
+  CALL 1
   TAILCALL 1
-.func UInt16.and#99 a
+L61:
+  LOAD error
+  CONST "Match_failure"
+  TAILCALL 1
+.func lambda#98 x
+  LOAD x
+  RET
+.func Except.map#99 f
   CLOSURE lambda#100
   RET
-.func lambda#100 b
-  LOAD uAnd
-  CONST {"big":"16"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
+.func lambda#100 e
+  CLOSURE lambda#101
+  LOAD e
   TAILCALL 1
-.func UInt16.or#101 a
+.func lambda#101 __m9
+  LOAD pair?
+  LOAD __m9
+  CALL 1
+  JF L65
+  LOAD eq?
+  LOAD car
+  LOAD __m9
+  CALL 1
+  CONST {"sym":"ctor/ok"}
+  CALL 2
+  JMP L66
+L65:
+  CONST false
+L66:
+  JF L64
   CLOSURE lambda#102
+  LOAD car
+  LOAD cdr
+  LOAD __m9
+  CALL 1
+  CALL 1
+  TAILCALL 1
+L64:
+  LOAD pair?
+  LOAD __m9
+  CALL 1
+  JF L68
+  LOAD eq?
+  LOAD car
+  LOAD __m9
+  CALL 1
+  CONST {"sym":"ctor/err"}
+  CALL 2
+  JMP L69
+L68:
+  CONST false
+L69:
+  JF L67
+  CLOSURE lambda#103
+  LOAD car
+  LOAD cdr
+  LOAD __m9
+  CALL 1
+  CALL 1
+  TAILCALL 1
+L67:
+  LOAD error
+  CONST "Match_failure"
+  TAILCALL 1
+.func lambda#102 x
+  LOAD ctor/ok
+  LOAD f
+  LOAD x
+  CALL 1
+  TAILCALL 1
+.func lambda#103 e
+  LOAD ctor/err
+  LOAD e
+  TAILCALL 1
+.func Except.bind#104 e
+  CLOSURE lambda#105
   RET
-.func lambda#102 b
-  LOAD uOr
-  CONST {"big":"16"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
+.func lambda#105 f
+  CLOSURE lambda#106
+  LOAD e
   TAILCALL 1
-.func UInt16.xor#103 a
-  CLOSURE lambda#104
+.func lambda#106 __m10
+  LOAD pair?
+  LOAD __m10
+  CALL 1
+  JF L71
+  LOAD eq?
+  LOAD car
+  LOAD __m10
+  CALL 1
+  CONST {"sym":"ctor/ok"}
+  CALL 2
+  JMP L72
+L71:
+  CONST false
+L72:
+  JF L70
+  CLOSURE lambda#107
+  LOAD car
+  LOAD cdr
+  LOAD __m10
+  CALL 1
+  CALL 1
+  TAILCALL 1
+L70:
+  LOAD pair?
+  LOAD __m10
+  CALL 1
+  JF L74
+  LOAD eq?
+  LOAD car
+  LOAD __m10
+  CALL 1
+  CONST {"sym":"ctor/err"}
+  CALL 2
+  JMP L75
+L74:
+  CONST false
+L75:
+  JF L73
+  CLOSURE lambda#108
+  LOAD car
+  LOAD cdr
+  LOAD __m10
+  CALL 1
+  CALL 1
+  TAILCALL 1
+L73:
+  LOAD error
+  CONST "Match_failure"
+  TAILCALL 1
+.func lambda#107 x
+  LOAD f
+  LOAD x
+  TAILCALL 1
+.func lambda#108 e
+  LOAD ctor/err
+  LOAD e
+  TAILCALL 1
+.func Except.getD#109 e
+  CLOSURE lambda#110
   RET
-.func lambda#104 b
-  LOAD uXor
-  CONST {"big":"16"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
-  TAILCALL 1
-.func UInt16.not#105 a
-  LOAD uNot
-  CONST {"big":"16"}
-  CALL 1
-  LOAD a
-  TAILCALL 1
-.func UInt16.toNat#106 a
-  LOAD uToNat
-  CONST {"big":"16"}
-  CALL 1
-  LOAD a
-  TAILCALL 1
-.func UInt16.fromNat#107 a
-  LOAD uFromNat
-  CONST {"big":"16"}
-  CALL 1
-  LOAD a
-  TAILCALL 1
-.func UInt32.add#108 a
-  CLOSURE lambda#109
-  RET
-.func lambda#109 b
-  LOAD uAdd
-  CONST {"big":"32"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
-  TAILCALL 1
-.func UInt32.sub#110 a
+.func lambda#110 d
   CLOSURE lambda#111
-  RET
-.func lambda#111 b
-  LOAD uSub
-  CONST {"big":"32"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
+  LOAD e
   TAILCALL 1
-.func UInt32.mul#112 a
+.func lambda#111 __m11
+  LOAD pair?
+  LOAD __m11
+  CALL 1
+  JF L77
+  LOAD eq?
+  LOAD car
+  LOAD __m11
+  CALL 1
+  CONST {"sym":"ctor/ok"}
+  CALL 2
+  JMP L78
+L77:
+  CONST false
+L78:
+  JF L76
+  CLOSURE lambda#112
+  LOAD car
+  LOAD cdr
+  LOAD __m11
+  CALL 1
+  CALL 1
+  TAILCALL 1
+L76:
+  LOAD pair?
+  LOAD __m11
+  CALL 1
+  JF L80
+  LOAD eq?
+  LOAD car
+  LOAD __m11
+  CALL 1
+  CONST {"sym":"ctor/err"}
+  CALL 2
+  JMP L81
+L80:
+  CONST false
+L81:
+  JF L79
   CLOSURE lambda#113
-  RET
-.func lambda#113 b
-  LOAD uMul
-  CONST {"big":"32"}
+  LOAD car
+  LOAD cdr
+  LOAD __m11
   CALL 1
-  LOAD a
   CALL 1
-  LOAD b
   TAILCALL 1
-.func UInt32.div#114 a
+L79:
+  LOAD error
+  CONST "Match_failure"
+  TAILCALL 1
+.func lambda#112 x
+  LOAD x
+  RET
+.func lambda#113 e
+  LOAD d
+  RET
+.func Except.toOption#114 e
   CLOSURE lambda#115
+  LOAD e
+  TAILCALL 1
+.func lambda#115 __m12
+  LOAD pair?
+  LOAD __m12
+  CALL 1
+  JF L83
+  LOAD eq?
+  LOAD car
+  LOAD __m12
+  CALL 1
+  CONST {"sym":"ctor/ok"}
+  CALL 2
+  JMP L84
+L83:
+  CONST false
+L84:
+  JF L82
+  CLOSURE lambda#116
+  LOAD car
+  LOAD cdr
+  LOAD __m12
+  CALL 1
+  CALL 1
+  TAILCALL 1
+L82:
+  LOAD pair?
+  LOAD __m12
+  CALL 1
+  JF L86
+  LOAD eq?
+  LOAD car
+  LOAD __m12
+  CALL 1
+  CONST {"sym":"ctor/err"}
+  CALL 2
+  JMP L87
+L86:
+  CONST false
+L87:
+  JF L85
+  LOAD ctor/none
   RET
-.func lambda#115 b
+L85:
+  LOAD error
+  CONST "Match_failure"
+  TAILCALL 1
+.func lambda#116 x
+  LOAD ctor/some
+  LOAD x
+  TAILCALL 1
+.func UInt8.add#117 a
+  CLOSURE lambda#118
+  RET
+.func lambda#118 b
+  LOAD uAdd
+  CONST {"big":"8"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt8.sub#119 a
+  CLOSURE lambda#120
+  RET
+.func lambda#120 b
+  LOAD uSub
+  CONST {"big":"8"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt8.mul#121 a
+  CLOSURE lambda#122
+  RET
+.func lambda#122 b
+  LOAD uMul
+  CONST {"big":"8"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt8.div#123 a
+  CLOSURE lambda#124
+  RET
+.func lambda#124 b
   LOAD uDiv
-  CONST {"big":"32"}
+  CONST {"big":"8"}
   CALL 1
   LOAD a
   CALL 1
   LOAD b
   TAILCALL 1
-.func UInt32.mod#116 a
-  CLOSURE lambda#117
+.func UInt8.mod#125 a
+  CLOSURE lambda#126
   RET
-.func lambda#117 b
+.func lambda#126 b
   LOAD uMod
-  CONST {"big":"32"}
+  CONST {"big":"8"}
   CALL 1
   LOAD a
   CALL 1
   LOAD b
   TAILCALL 1
-.func UInt32.shl#118 a
-  CLOSURE lambda#119
+.func UInt8.shl#127 a
+  CLOSURE lambda#128
   RET
-.func lambda#119 b
+.func lambda#128 b
   LOAD uShl
-  CONST {"big":"32"}
+  CONST {"big":"8"}
   CALL 1
   LOAD a
   CALL 1
   LOAD b
   TAILCALL 1
-.func UInt32.shr#120 a
-  CLOSURE lambda#121
+.func UInt8.shr#129 a
+  CLOSURE lambda#130
   RET
-.func lambda#121 b
+.func lambda#130 b
   LOAD uShr
-  CONST {"big":"32"}
+  CONST {"big":"8"}
   CALL 1
   LOAD a
   CALL 1
   LOAD b
   TAILCALL 1
-.func UInt32.and#122 a
-  CLOSURE lambda#123
-  RET
-.func lambda#123 b
-  LOAD uAnd
-  CONST {"big":"32"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
-  TAILCALL 1
-.func UInt32.or#124 a
-  CLOSURE lambda#125
-  RET
-.func lambda#125 b
-  LOAD uOr
-  CONST {"big":"32"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
-  TAILCALL 1
-.func UInt32.xor#126 a
-  CLOSURE lambda#127
-  RET
-.func lambda#127 b
-  LOAD uXor
-  CONST {"big":"32"}
-  CALL 1
-  LOAD a
-  CALL 1
-  LOAD b
-  TAILCALL 1
-.func UInt32.not#128 a
-  LOAD uNot
-  CONST {"big":"32"}
-  CALL 1
-  LOAD a
-  TAILCALL 1
-.func UInt32.toNat#129 a
-  LOAD uToNat
-  CONST {"big":"32"}
-  CALL 1
-  LOAD a
-  TAILCALL 1
-.func UInt32.fromNat#130 a
-  LOAD uFromNat
-  CONST {"big":"32"}
-  CALL 1
-  LOAD a
-  TAILCALL 1
-.func UInt64.add#131 a
+.func UInt8.and#131 a
   CLOSURE lambda#132
   RET
 .func lambda#132 b
+  LOAD uAnd
+  CONST {"big":"8"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt8.or#133 a
+  CLOSURE lambda#134
+  RET
+.func lambda#134 b
+  LOAD uOr
+  CONST {"big":"8"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt8.xor#135 a
+  CLOSURE lambda#136
+  RET
+.func lambda#136 b
+  LOAD uXor
+  CONST {"big":"8"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt8.not#137 a
+  LOAD uNot
+  CONST {"big":"8"}
+  CALL 1
+  LOAD a
+  TAILCALL 1
+.func UInt8.toNat#138 a
+  LOAD uToNat
+  CONST {"big":"8"}
+  CALL 1
+  LOAD a
+  TAILCALL 1
+.func UInt8.fromNat#139 a
+  LOAD uFromNat
+  CONST {"big":"8"}
+  CALL 1
+  LOAD a
+  TAILCALL 1
+.func UInt16.add#140 a
+  CLOSURE lambda#141
+  RET
+.func lambda#141 b
+  LOAD uAdd
+  CONST {"big":"16"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt16.sub#142 a
+  CLOSURE lambda#143
+  RET
+.func lambda#143 b
+  LOAD uSub
+  CONST {"big":"16"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt16.mul#144 a
+  CLOSURE lambda#145
+  RET
+.func lambda#145 b
+  LOAD uMul
+  CONST {"big":"16"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt16.div#146 a
+  CLOSURE lambda#147
+  RET
+.func lambda#147 b
+  LOAD uDiv
+  CONST {"big":"16"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt16.mod#148 a
+  CLOSURE lambda#149
+  RET
+.func lambda#149 b
+  LOAD uMod
+  CONST {"big":"16"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt16.shl#150 a
+  CLOSURE lambda#151
+  RET
+.func lambda#151 b
+  LOAD uShl
+  CONST {"big":"16"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt16.shr#152 a
+  CLOSURE lambda#153
+  RET
+.func lambda#153 b
+  LOAD uShr
+  CONST {"big":"16"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt16.and#154 a
+  CLOSURE lambda#155
+  RET
+.func lambda#155 b
+  LOAD uAnd
+  CONST {"big":"16"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt16.or#156 a
+  CLOSURE lambda#157
+  RET
+.func lambda#157 b
+  LOAD uOr
+  CONST {"big":"16"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt16.xor#158 a
+  CLOSURE lambda#159
+  RET
+.func lambda#159 b
+  LOAD uXor
+  CONST {"big":"16"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt16.not#160 a
+  LOAD uNot
+  CONST {"big":"16"}
+  CALL 1
+  LOAD a
+  TAILCALL 1
+.func UInt16.toNat#161 a
+  LOAD uToNat
+  CONST {"big":"16"}
+  CALL 1
+  LOAD a
+  TAILCALL 1
+.func UInt16.fromNat#162 a
+  LOAD uFromNat
+  CONST {"big":"16"}
+  CALL 1
+  LOAD a
+  TAILCALL 1
+.func UInt32.add#163 a
+  CLOSURE lambda#164
+  RET
+.func lambda#164 b
+  LOAD uAdd
+  CONST {"big":"32"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt32.sub#165 a
+  CLOSURE lambda#166
+  RET
+.func lambda#166 b
+  LOAD uSub
+  CONST {"big":"32"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt32.mul#167 a
+  CLOSURE lambda#168
+  RET
+.func lambda#168 b
+  LOAD uMul
+  CONST {"big":"32"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt32.div#169 a
+  CLOSURE lambda#170
+  RET
+.func lambda#170 b
+  LOAD uDiv
+  CONST {"big":"32"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt32.mod#171 a
+  CLOSURE lambda#172
+  RET
+.func lambda#172 b
+  LOAD uMod
+  CONST {"big":"32"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt32.shl#173 a
+  CLOSURE lambda#174
+  RET
+.func lambda#174 b
+  LOAD uShl
+  CONST {"big":"32"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt32.shr#175 a
+  CLOSURE lambda#176
+  RET
+.func lambda#176 b
+  LOAD uShr
+  CONST {"big":"32"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt32.and#177 a
+  CLOSURE lambda#178
+  RET
+.func lambda#178 b
+  LOAD uAnd
+  CONST {"big":"32"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt32.or#179 a
+  CLOSURE lambda#180
+  RET
+.func lambda#180 b
+  LOAD uOr
+  CONST {"big":"32"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt32.xor#181 a
+  CLOSURE lambda#182
+  RET
+.func lambda#182 b
+  LOAD uXor
+  CONST {"big":"32"}
+  CALL 1
+  LOAD a
+  CALL 1
+  LOAD b
+  TAILCALL 1
+.func UInt32.not#183 a
+  LOAD uNot
+  CONST {"big":"32"}
+  CALL 1
+  LOAD a
+  TAILCALL 1
+.func UInt32.toNat#184 a
+  LOAD uToNat
+  CONST {"big":"32"}
+  CALL 1
+  LOAD a
+  TAILCALL 1
+.func UInt32.fromNat#185 a
+  LOAD uFromNat
+  CONST {"big":"32"}
+  CALL 1
+  LOAD a
+  TAILCALL 1
+.func UInt64.add#186 a
+  CLOSURE lambda#187
+  RET
+.func lambda#187 b
   LOAD uAdd
   CONST {"big":"64"}
   CALL 1
@@ -1267,10 +2062,10 @@ L26:
   CALL 1
   LOAD b
   TAILCALL 1
-.func UInt64.sub#133 a
-  CLOSURE lambda#134
+.func UInt64.sub#188 a
+  CLOSURE lambda#189
   RET
-.func lambda#134 b
+.func lambda#189 b
   LOAD uSub
   CONST {"big":"64"}
   CALL 1
@@ -1278,10 +2073,10 @@ L26:
   CALL 1
   LOAD b
   TAILCALL 1
-.func UInt64.mul#135 a
-  CLOSURE lambda#136
+.func UInt64.mul#190 a
+  CLOSURE lambda#191
   RET
-.func lambda#136 b
+.func lambda#191 b
   LOAD uMul
   CONST {"big":"64"}
   CALL 1
@@ -1289,10 +2084,10 @@ L26:
   CALL 1
   LOAD b
   TAILCALL 1
-.func UInt64.div#137 a
-  CLOSURE lambda#138
+.func UInt64.div#192 a
+  CLOSURE lambda#193
   RET
-.func lambda#138 b
+.func lambda#193 b
   LOAD uDiv
   CONST {"big":"64"}
   CALL 1
@@ -1300,10 +2095,10 @@ L26:
   CALL 1
   LOAD b
   TAILCALL 1
-.func UInt64.mod#139 a
-  CLOSURE lambda#140
+.func UInt64.mod#194 a
+  CLOSURE lambda#195
   RET
-.func lambda#140 b
+.func lambda#195 b
   LOAD uMod
   CONST {"big":"64"}
   CALL 1
@@ -1311,10 +2106,10 @@ L26:
   CALL 1
   LOAD b
   TAILCALL 1
-.func UInt64.shl#141 a
-  CLOSURE lambda#142
+.func UInt64.shl#196 a
+  CLOSURE lambda#197
   RET
-.func lambda#142 b
+.func lambda#197 b
   LOAD uShl
   CONST {"big":"64"}
   CALL 1
@@ -1322,10 +2117,10 @@ L26:
   CALL 1
   LOAD b
   TAILCALL 1
-.func UInt64.shr#143 a
-  CLOSURE lambda#144
+.func UInt64.shr#198 a
+  CLOSURE lambda#199
   RET
-.func lambda#144 b
+.func lambda#199 b
   LOAD uShr
   CONST {"big":"64"}
   CALL 1
@@ -1333,10 +2128,10 @@ L26:
   CALL 1
   LOAD b
   TAILCALL 1
-.func UInt64.and#145 a
-  CLOSURE lambda#146
+.func UInt64.and#200 a
+  CLOSURE lambda#201
   RET
-.func lambda#146 b
+.func lambda#201 b
   LOAD uAnd
   CONST {"big":"64"}
   CALL 1
@@ -1344,10 +2139,10 @@ L26:
   CALL 1
   LOAD b
   TAILCALL 1
-.func UInt64.or#147 a
-  CLOSURE lambda#148
+.func UInt64.or#202 a
+  CLOSURE lambda#203
   RET
-.func lambda#148 b
+.func lambda#203 b
   LOAD uOr
   CONST {"big":"64"}
   CALL 1
@@ -1355,10 +2150,10 @@ L26:
   CALL 1
   LOAD b
   TAILCALL 1
-.func UInt64.xor#149 a
-  CLOSURE lambda#150
+.func UInt64.xor#204 a
+  CLOSURE lambda#205
   RET
-.func lambda#150 b
+.func lambda#205 b
   LOAD uXor
   CONST {"big":"64"}
   CALL 1
@@ -1366,30 +2161,30 @@ L26:
   CALL 1
   LOAD b
   TAILCALL 1
-.func UInt64.not#151 a
+.func UInt64.not#206 a
   LOAD uNot
   CONST {"big":"64"}
   CALL 1
   LOAD a
   TAILCALL 1
-.func UInt64.toNat#152 a
+.func UInt64.toNat#207 a
   LOAD uToNat
   CONST {"big":"64"}
   CALL 1
   LOAD a
   TAILCALL 1
-.func UInt64.fromNat#153 a
+.func UInt64.fromNat#208 a
   LOAD uFromNat
   CONST {"big":"64"}
   CALL 1
   LOAD a
   TAILCALL 1
-.func double#154 x
+.func double#209 x
   LOAD *
   LOAD x
   CONST {"big":"2"}
   TAILCALL 2
-.func lambda#155 x
+.func lambda#210 x
   LOAD println
   LOAD x
   CALL 1
@@ -1400,13 +2195,13 @@ L26:
   CALL 1
   CALL 1
   POP
-  CLOSURE lambda#156
+  CLOSURE lambda#211
   LOAD +
   LOAD x
   CONST {"big":"8"}
   CALL 2
   TAILCALL 1
-.func lambda#156 y
+.func lambda#211 y
   LOAD println
   LOAD y
   TAILCALL 1
