@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 'use strict';
 /*
- * lispc.js  —  迷你 Scheme 風格 Lisp  ->  中間碼 (.lbc) 編譯器
+ * lispc.js  —  迷你 Scheme 風格 Lisp  ->  中間碼 (.fbc) 編譯器
  *
- * 用法:  node lispc.js input.lisp [-o output.lbc]      (-o - 輸出到 stdout)
+ * 用法:  node lispc.js input.lisp [-o output.fbc]      (-o - 輸出到 stdout)
  *
  * ───────────────────────── 中間碼格式 (LBC v1) ─────────────────────────
  * 文字檔、一行一個項目，堆疊式 (stack-based) 虛擬機。
@@ -329,10 +329,10 @@ module.exports = { compile, parse };
 /* ───────────── CLI ───────────── */
 if (require.main === module) {
   const args = process.argv.slice(2);
-  if (args.length === 0) { console.error('用法: node lispc.js input.lisp [-o output.lbc]'); process.exit(1); }
+  if (args.length === 0) { console.error('用法: node lispc.js input.lisp [-o output.fbc]'); process.exit(1); }
   const input = args[0];
   const oi = args.indexOf('-o');
-  const output = oi >= 0 ? args[oi + 1] : input.replace(/\.[^.]*$/, '') + '.lbc';
+  const output = oi >= 0 ? args[oi + 1] : input.replace(/\.[^.]*$/, '') + '.fbc';
   try {
     const bc = compile(fs.readFileSync(input, 'utf8'));
     if (output === '-') process.stdout.write(bc);

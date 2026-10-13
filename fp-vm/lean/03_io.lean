@@ -1,5 +1,5 @@
 -- 03_io.lean : do-notation、let、main 自動執行
--- 執行: node leanc.js lean/03_io.lean && node lispvm.js lean/03_io.lbc
+-- 執行: node leanc.js lean/03_io.lean && node fpvm.js lean/03_io.fbc
 
 def double (x : Nat) : Nat := x * 2
 

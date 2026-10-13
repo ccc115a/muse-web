@@ -3,32 +3,35 @@
 /*
  * leanc.js  —  微型 Lean  ->  LBC v1 中間碼 (經 mlc AST + Desugar)
  *
- * 用法:  node leanc.js prog.lean [-o prog.lbc]      (-o - 輸出到 stdout)
+ * 用法:  node leanc.js prog.lean [-o prog.fbc]      (-o - 輸出到 stdout)
  *        node leanc.js prog.lean --scheme            只印 Scheme 核心，方便除錯
- *        node lispvm.js prog.lbc
+ *        node fpvm.js prog.fbc
  *
  * 流程:  *.lean --(parser)--> mlc AST --(mlc Desugar)--> Scheme --(lispc)--> LBC
  * 詳見 _doc/plan2.0.md。型別全部擦除；Prop/證明項不存在。
  *
- * ── micro-Lean v1 範圍 ──
- *  inductive (非依賴) / def (單體 + 多方程式) / abbrev / #eval
+ * ── micro-Lean v2.2 範圍 ──
+ *  inductive (非依賴) / structure (降單 ctor + 投影) / class / instance / deriving BEq,Repr
+ *  def (單體 + 多方程式) / abbrev / #eval
  *  match (可選 h : 前綴) / if (可選 h :) / let x := e; body / fun / do
+ *  try BODY catch VAR => HANDLER / {...} 實例 / {p with ...} 更新 / #[...] array
  *  Nat 字面量一律 BigInt；/ = 截斷除法；- = 截斷減法；do 取 direct-style IO
- *  不做: structure/class/instance/theorem/tactic/Nat.succ pattern/#[]/'c'/字串插值
+ *  方法呼叫按執行期標籤分派 (首參數)；Nat/String/Bool 實例暫無；p.x 點記法不支援
+ *  不做: theorem/tactic/Nat.succ pattern/'c'/字串插值/extends/具名遞迴實例
  */
 const fs = require('fs');
 const lispc = require('./lispc.js');
 const mlc = require('./mlc.js');
 
 /* ─────────── Lexer ─────────── */
-const KEYWORDS = new Set(['inductive', 'def', 'abbrev', 'match', 'with', 'if', 'then', 'else',
-  'let', 'fun', 'do', 'return', 'deriving', 'where', 'by',
+const KEYWORDS = new Set(['inductive', 'structure', 'def', 'abbrev', 'match', 'with', 'if', 'then', 'else',
+  'let', 'fun', 'do', 'return', 'try', 'catch', 'deriving', 'where', 'by',
   'import', 'open', 'namespace', 'section', 'end', 'variable', 'universe',
-  'instance', 'class', 'structure', 'theorem', 'lemma', 'example',
+  'instance', 'class', 'theorem', 'lemma', 'example',
   'true', 'false']);
-const TOPKW = new Set(['inductive', 'def', 'abbrev', 'import', 'open', 'namespace', 'section',
+const TOPKW = new Set(['inductive', 'structure', 'class', 'instance', 'def', 'abbrev', 'import', 'open', 'namespace', 'section',
   'end', 'variable', 'universe']);
-const PROOFKW = new Set(['instance', 'class', 'structure', 'theorem', 'lemma', 'example']);
+const PROOFKW = new Set(['theorem', 'lemma', 'example']);
 const RESERVED_VAR = new Set(['nil', 'true', 'false', 'by', 'where']);
 
 function tokenize(src) {
@@ -66,6 +69,33 @@ function tokenize(src) {
     let m;
     if ((m = /^\d+\.\d+/.exec(rest))) { push('num', Number(m[0])); i += m[0].length; continue; }
     if ((m = /^\d+/.exec(rest))) { push('num', BigInt(m[0])); i += m[0].length; continue; }
+    if (c === "'") {                                             // 'a' '\n' '\u{1F600}'
+      i++;
+      let cp;
+      if (src[i] === '\\') {
+        i++; const e = src[i];
+        if (e === 'u' && src[i + 1] === '{') {
+          let j = i + 2, hex = '';
+          while (src[j] !== '}') {
+            if (j >= src.length || !/[0-9a-fA-F]/.test(src[j])) throw new Error(`第 ${line} 行: 錯誤的 \\u{...}`);
+            hex += src[j]; j++;
+          }
+          cp = parseInt(hex, 16); i = j + 1;
+        } else {
+          cp = e === 'n' ? 10 : e === 't' ? 9 : e === 'r' ? 13 : e === '0' ? 0 :
+               e === '\\' ? 92 : e === "'" ? 39 : e === '"' ? 34 : null;
+          if (cp === null) throw new Error(`第 ${line} 行: 未知的跳脫 '\\${e}'`);
+          i++;
+        }
+      } else {
+        cp = src.codePointAt(i);
+        if (cp === undefined) throw new Error(`第 ${line} 行: 空的字元字面量`);
+        i += cp > 0xFFFF ? 2 : 1;
+      }
+      if (src[i] !== "'") throw new Error(`第 ${line} 行: 字元字面量須為單一字元`);
+      i++; push('num', BigInt(cp)); continue;
+    }
+    if (c === '#' && src[i + 1] === '[') { push('arrayopen'); i += 2; continue; }   // #[...]
     if (c === '#' && isIdStart(src[i + 1])) {
       let j = i + 1; while (isIdChar(src[j])) j++;
       push('directive', src.slice(i, j)); i = j; continue;
@@ -85,7 +115,7 @@ function tokenize(src) {
     if (rest.startsWith('=>')) { push('op', '=>'); i += 2; continue; }
     const two = rest.slice(0, 2);
     if (['==', '!=', '<=', '>=', '&&', '||', '::'].includes(two)) { push('op', two); i += 2; continue; }
-    if ('+-*/%<>=|;,()[]:_.'.includes(c)) { push('op', c); i++; continue; }
+    if ('+-*/%<>=|;,()[]:{}_.'.includes(c)) { push('op', c); i++; continue; }
     throw new Error(`第 ${line} 行: 無法辨識的字元 "${c}"`);
   }
   return toks;
@@ -100,6 +130,20 @@ const strip = dotted => {                                        // NatList.cons
   return s[s.length - 1];
 };
 const C = n => 'ctor/' + n;                                      // 建構子內部名 (避開 nil 等保留字)
+/* 方法名不可佔用的 prim 名 (否則呼叫被攔截改道，無聲劫持) */
+const RESERVED_METHOD = new Set(['car', 'cdr', 'cadr', 'cddr', 'caddr', 'cons', 'list',
+  'length', 'append', 'reverse', 'display', 'write', 'newline', 'error', 'apply',
+  'vector', 'hash-map', 'array', 'not']);
+// 連字號 prim 在 Lean 識別字寫不出來，用 Lean 本名別名 (Array.size 等)
+const PRIM_ALIAS = new Map(Object.entries({
+  'Array.size': 'array-size', 'Array.push': 'array-push', 'Array.get': 'array-get',
+  'Array.set': 'array-set', 'Array.empty': 'array-empty',
+  'Nat.toString': 'number->string', 'String.append': 'string-append', 'Symbol.toString': 'symbol->string',
+  'Bit.and': 'bit-and', 'Bit.or': 'bit-or', 'Bit.xor': 'bit-xor',
+  'String.get': 'string-ref', 'String.extract': 'substring', 'String.length': 'string-length',
+  'Char.toNat': 'char->nat', 'Char.ofNat': 'nat->char',
+  'IO.readLine': 'read-line', 'IO.getArgs': 'get-args', 'IO.exit': 'exit',
+}));
 let gid = 0;
 const tmp = (p = 'l') => `__lean${p}${gid++}`;
 
@@ -111,7 +155,20 @@ const LEVELS = [
 ];
 
 class Parser {
-  constructor(toks, ctorSet = new Set()) { this.t = toks; this.p = 0; this.ctorSet = ctorSet; this.lastLine = 1; this.appBaseCol = null; }
+  constructor(toks, prescanned = null, opts = {}) {
+    this.t = toks; this.p = 0;
+    this.indCtors = (prescanned && prescanned.ind) || new Set();     // 'ctor/nil' (inductive，去點)
+    this.structCtors = (prescanned && prescanned.struct) || new Set(); // 'ctor/Point.mk' (全名)
+    this.structs = new Map();                                        // Struct -> [欄位] (解析期累積)
+    this.projections = new Set();                                    // 'Point.x' 全名
+    this.indTypes = new Map();                                       // Inductive -> [內部 ctor 名]
+    this.classes = new Map();                                        // Class -> [方法] (宣告順序)
+    this.methodOf = new Map();                                       // 方法 -> {cls, idx}
+    this.defs = new Set();                                           // 已定義名 (碰撞檢查)
+    this.reservedDefs = opts.reservedDefs || null;                   // 內建 prelude 名 (禁止覆寫)
+    this.allowDunder = !!opts.allowDunder;                           // 內建 prelude 才可定義 __ 名
+    this.lastLine = 1; this.appBaseCol = null;
+  }
   peek(skipNL = true) {
     let q = this.p;
     if (skipNL) while (this.t[q] && this.t[q].k === 'nl') q++;
@@ -132,6 +189,7 @@ class Parser {
     throw new Error(t ? `第 ${t.line} 行: ${msg}` : `${msg} (已到檔案結尾)`);
   }
   expectOp(v) { if (!this.isOp(v)) this.err(`需要 "${v}"`); return this.next(); }
+  expectKw(v) { const t = this.peek(); if (!t || t.k !== 'kw' || t.v !== v) this.err(`需要 "${v}"`); return this.next(); }
   expectId() { const t = this.peek(); if (!t || t.k !== 'id') this.err('需要識別字'); return this.next().v; }
   checkVar(name) { if (RESERVED_VAR.has(name)) this.err(`"${name}" 不可為變數名`); return name; }
 
@@ -158,7 +216,10 @@ class Parser {
               { t: 'expr', e: { t: 'app', f: vr('newline'), a: { t: 'nil' } } }];
     }
     if (t.k === 'kw') {
-      if (t.v === 'inductive') return [this.parseInductive()];
+      if (t.v === 'inductive') return this.parseInductive();
+      if (t.v === 'structure') return this.parseStructure();
+      if (t.v === 'class') { this.parseClass(); return []; }
+      if (t.v === 'instance') return [this.parseInstance()];
       if (t.v === 'def' || t.v === 'abbrev') return [this.parseDef()];
       if (TOPKW.has(t.v)) { this.next(); this.skipLine(); return []; }   // import/open/... no-op
       if (PROOFKW.has(t.v)) this.err(`"${t.v}" 不在 micro-Lean 範圍 (證明已擦除，無需寫出)`);
@@ -188,6 +249,7 @@ class Parser {
   parseInductive() {
     this.next();                                                 // inductive
     const name = strip(this.expectId());
+    if (this.isKw('where')) this.next();                         // inductive T where (可選)
     const ctors = [];
     for (;;) {
       if (!this.isOp('|')) break;
@@ -218,8 +280,197 @@ class Parser {
       }
       ctors.push({ name: C(cn), arity });
     }
-    if (this.isKw('deriving')) { this.next(); while (this.peek() && this.peek().k === 'id') this.next(); }
-    return { t: 'datatype', name, ctors };
+    this.indTypes.set(name, ctors.map(c => c.name));
+    const items = [{ t: 'datatype', name, ctors }];
+    for (const dn of this.parseDeriving()) items.push(this.makeDerived(dn, ctors.map(c => c.name)));
+    return items;
+  }
+
+  parseDeriving() {                                              // deriving A, B (無則空)
+    if (!this.isKw('deriving')) return [];
+    this.next();
+    const out = [];
+    for (;;) {
+      while (this.raw() && this.raw().k === 'nl') this.p++;
+      const t = this.raw();
+      if (!t || t.k !== 'id') break;
+      out.push(strip(this.next().v));
+      while (this.raw() && this.raw().k === 'nl') this.p++;
+      if (this.isOp(',')) { this.next(); continue; }
+      break;
+    }
+    return out;
+  }
+
+  makeDerived(cls, tags) {                                       // deriving 實例 (BEq/Repr 標準實作)
+    if (!this.classes.has(cls)) this.err(`deriving ${cls}: class 尚未宣告`);
+    const methods = this.classes.get(cls);
+    const impls = new Map();
+    for (const m of methods) {
+      if (m === 'beq' && cls === 'BEq') {
+        const a = tmp('d'), b = tmp('d');
+        impls.set(m, { t: 'lam', param: { p: 'var', name: a },
+          body: { t: 'lam', param: { p: 'var', name: b },
+            body: { t: 'binop', op: '=', l: vr(a), r: vr(b) } } });
+      } else if (m === 'repr' && cls === 'Repr') {
+        const x = tmp('d');
+        impls.set(m, { t: 'lam', param: { p: 'var', name: x },
+          body: { t: 'app', f: vr('__reprAny'), a: vr(x) } });
+      } else this.err(`deriving ${cls}: 方法 "${m}" 需手寫 instance (只自動產生 beq/repr)`);
+    }
+    return { t: 'instance', cls, tags, methods, impls };
+  }
+
+  skipToLineEnd() {                                          // 跳過型別到行尾/分號 (深度感知)
+    let depth = 0;
+    for (;;) {
+      const t = this.raw();
+      if (!t) return;
+      if ((t.k === 'nl' || (t.k === 'op' && t.v === ';')) && depth === 0) return;
+      if (t.k === 'op' && (t.v === '(' || t.v === '[' || t.v === '{')) depth++;
+      if (t.k === 'op' && (t.v === ')' || t.v === ']' || t.v === '}')) depth--;
+      this.p++;
+    }
+  }
+
+  parseClass() {
+    this.next();                                                 // class
+    const t0 = this.peek();
+    if (!t0 || t0.k !== 'id') this.err('class 需要名稱');
+    const name = t0.v;                                           // 保持全名
+    this.next();
+    while (this.peek() && this.peek().k === 'op' && ['(', '{', '['].includes(this.peek().v)) {
+      const open = this.next().v, close = open === '(' ? ')' : open === '{' ? '}' : ']';
+      let depth = 1;
+      while (depth > 0) {
+        const u = this.next(false);
+        if (!u) this.err('class 參數不完整');
+        if (u.k === 'op' && u.v === open) depth++;
+        if (u.k === 'op' && u.v === close) depth--;
+      }
+    }
+    if (!this.isKw('where')) this.err('class 需要 where');
+    this.next();
+    const methods = [];
+    for (;;) {
+      while (this.raw() && (this.raw().k === 'nl' || (this.raw().k === 'op' && this.raw().v === ';'))) this.p++;
+      const t = this.raw();
+      if (!t || t.k !== 'id') break;
+      let q = this.p + 1;
+      if (!this.t[q] || this.t[q].k !== 'op' || this.t[q].v !== ':') break;
+      const mn = strip(t.v);
+      if (this.methodOf.has(mn)) this.err(`方法名 "${mn}" 重複`);
+      if (this.defs.has(mn)) this.err(`方法名 "${mn}" 與 def 衝突`);
+      if (RESERVED_METHOD.has(mn)) this.err(`方法名 "${mn}" 與 prim 衝突`);
+      if (this.indCtors.has(C(mn))) this.err(`方法名 "${mn}" 與建構子衝突`);
+      this.p++; this.p++;                                        // name :
+      this.skipToLineEnd();
+      this.methodOf.set(mn, { cls: name, idx: methods.length });
+      methods.push(mn);
+    }
+    if (!methods.length) this.err(`class ${name} 需要至少一個方法`);
+    this.classes.set(name, methods);
+  }
+
+  parseInstance() {
+    this.next();                                                 // instance
+    if (this.peek() && this.peek().k === 'id') {                 // 可選名 (忽略)
+      let q = this.p + 1;
+      if (this.t[q] && this.t[q].k === 'op' && this.t[q].v === ':') this.p++;
+    }
+    this.expectOp(':');
+    const clsT = this.peek();
+    if (!clsT || clsT.k !== 'id') this.err('instance 需要 : Class Type');
+    const cls = clsT.v; this.next();
+    const tyT = this.peek();
+    if (!tyT || tyT.k !== 'id') this.err('instance 需要 : Class Type');
+    const ty = tyT.v; this.next();
+    if (!this.classes.has(cls)) this.err(`未知 class "${cls}" (請先宣告)`);
+    const tags = this.typeTags(ty);
+    if (!this.isKw('where')) this.err('instance 需要 where');
+    this.next();
+    const methods = this.classes.get(cls), seen = new Set(), impls = new Map();
+    const outerBase = this.appBaseCol;
+    for (;;) {
+      while (this.raw() && (this.raw().k === 'nl' || (this.raw().k === 'op' && this.raw().v === ';'))) this.p++;
+      const t = this.raw();
+      if (!t) break;
+      if (t.k === 'kw' && (TOPKW.has(t.v) || PROOFKW.has(t.v))) break;
+      if (t.k === 'directive') break;
+      if (t.k !== 'id' || !methods.includes(strip(t.v))) break;
+      const mn = strip(t.v);
+      if (seen.has(mn)) this.err(`方法 "${mn}" 重複實作`);
+      seen.add(mn);
+      this.p++;
+      this.appBaseCol = t.col;
+      const params = [];
+      while (this.peek() && this.peek().k === 'id') {
+        const pn = strip(this.next().v);
+        if (/^[A-Z]/.test(pn)) this.err(`方法參數須為變數 (${pn})`);
+        params.push(this.checkVar(pn));
+      }
+      this.expectOp(':=');
+      const body = this.parseExpr();
+      impls.set(mn, params.reduceRight((b, p) => ({ t: 'lam', param: { p: 'var', name: p }, body: b }), body));
+    }
+    this.appBaseCol = outerBase;
+    const missing = methods.filter(m => !seen.has(m));
+    if (missing.length) this.err(`instance 缺少方法實作: ${missing.join(', ')}`);
+    return { t: 'instance', cls, tags, methods, impls };
+  }
+
+  typeTags(ty) {                                                  // Type 名 -> 內部 ctor 標籤列
+    if (this.structs.has(ty)) return [C(ty + '.mk')];
+    const short = strip(ty);
+    const found = [...this.indTypes.entries()].find(([n]) => n === ty || strip(n) === short);
+    if (found) return found[1];
+    const known = [...this.structs.keys(), ...this.indTypes.keys()];
+    this.err(`未知型別 "${ty}" (請先宣告 inductive/structure` +
+      (known.length ? `；已宣告: ${known.join(', ')}` : '') + ')');
+  }
+
+  parseStructure() {
+    this.next();                                                 // structure
+    const t0 = this.peek();
+    if (!t0 || t0.k !== 'id') this.err('structure 需要名稱');
+    const name = t0.v;                                           // 保持全名 (A.B 亦可)
+    this.next();
+    if (!this.isKw('where')) this.err('structure 需要 where');
+    this.next();
+    const fields = [];
+    for (;;) {                                                   // 欄位行 (NL / ; 分隔)
+      while (this.raw() && (this.raw().k === 'nl' || (this.raw().k === 'op' && this.raw().v === ';'))) this.p++;
+      const t = this.raw();
+      if (!t || t.k !== 'id') break;
+      let q = this.p + 1;                                        // 同行 ':' 才算欄位
+      if (!this.t[q] || this.t[q].k !== 'op' || this.t[q].v !== ':') break;
+      const fn = strip(t.v);
+      this.checkVar(fn);
+      if (fields.includes(fn)) this.err(`重複欄位 "${fn}"`);
+      fields.push(fn);
+      this.p++; this.p++;                                        // name :
+      let depth = 0;                                             // 跳過型別 (至換行/分號)
+      while (this.raw() && !((this.raw().k === 'nl' || (this.raw().k === 'op' && this.raw().v === ';')) && depth === 0)) {
+        const u = this.raw();
+        if (u.k === 'op' && (u.v === '(' || u.v === '[' || u.v === '{')) depth++;
+        if (u.k === 'op' && (u.v === ')' || u.v === ']' || u.v === '}')) depth--;
+        this.p++;
+      }
+    }
+    const mk = C(name + '.mk');
+    this.structs.set(name, fields);
+    this.structCtors.add(mk);
+    fields.forEach(f => this.projections.add(name + '.' + f));
+    const items = [{ t: 'datatype', name, ctors: [{ name: mk, arity: fields.length }] }];
+    for (const dn of this.parseDeriving()) items.push(this.makeDerived(dn, [mk]));
+    fields.forEach((f, i) => {                                   // 投影: match 取第 i 欄
+      const p = tmp('s');
+      const args = fields.map((g, j) => j === i ? { p: 'var', name: g } : { p: 'wild' });
+      items.push({ t: 'def', name: name + '.' + f, rec: false,
+        val: { t: 'lam', param: { p: 'var', name: p },
+          body: { t: 'match', scrut: vr(p), clauses: [{ pat: { p: 'ctor', name: mk, args }, body: vr(f) }] } } });
+    });
+    return items;
   }
 
   parseBinders(explicit) {                                       // (x y : T) / {x} / [i]
@@ -244,14 +495,22 @@ class Parser {
 
   parseDef() {
     this.next();                                                 // def / abbrev
-    const name = strip(this.expectId());
+    const name = this.expectId();                                // 保持全名 (UInt32.add 之類)
+    if (!this.allowDunder && name.startsWith('__')) this.err(`"${name}" 為保留前綴 (內建 prelude 專用)`);
+    if (this.reservedDefs && this.reservedDefs.has(name)) this.err(`"${name}" 與內建 prelude 衝突`);
+    if (this.methodOf.has(strip(name))) this.err(`"${name}" 與 typeclass 方法衝突`);
+    if (this.defs.has(name)) this.err(`"${name}" 重複定義`);
+    if (this.projections.has(name)) this.err(`"${name}" 與投影函式衝突`);
+    if (name.includes('.') ? (this.structCtors.has(C(name)) || this.indCtors.has(C(strip(name))))
+                           : this.indCtors.has(C(name))) this.err(`"${name}" 與建構子衝突`);
+    this.defs.add(name);
     const explicit = [];
     this.parseBinders(explicit);
     if (this.isOp(':')) { this.next(); this.skipTypeTo(':=', '|'); }
     if (this.isOp('|')) return this.parseEquations(name, explicit);
     this.expectOp(':=');
     if (this.isKw('by')) this.err('tactic (by ...) 不支援');
-    for (const p of explicit) if (this.knownCtor(p)) this.err(`參數名 "${p}" 與建構子衝突`);
+    for (const p of explicit) if (this.indCtors.has(C(p))) this.err(`參數名 "${p}" 與建構子衝突`);
     const body = this.parseExpr();
     if (this.isKw('where')) this.err('where 子句不支援');
     const val = explicit.reduceRight((b, p) => ({ t: 'lam', param: { p: 'var', name: p }, body: b }), body);
@@ -264,7 +523,7 @@ class Parser {
     while (this.isOp('|')) {
       this.next();
       let t = this.peek();
-      if (t && t.k === 'id' && strip(t.v) === name) this.next();  // 可選的函式名前綴
+      if (t && t.k === 'id' && t.v === name) this.next();  // 可選的函式名前綴 (全名比對)
       const pats = [this.parsePattern()];
       while (this.isOp(',')) { this.next(); pats.push(this.parsePattern()); }
       if (this.startsPatAtom()) this.err('多參數方程式請用逗號分隔 (如 | .nil, ys => ...)');
@@ -341,6 +600,16 @@ class Parser {
     }
     if (t.k === 'kw' && t.v === 'do') return this.parseDo();
     if (t.k === 'kw' && t.v === 'return') { this.next(); return this.parseExpr(); }
+    if (t.k === 'kw' && t.v === 'try') {
+      this.next();
+      const body = this.parseExpr();
+      this.expectKw('catch');
+      const v = this.expectId();
+      if (v.includes('.')) this.err('catch 變數不可含點');
+      this.checkVar(strip(v));
+      this.expectOp('=>');
+      return { t: 'try', body, var: strip(v), handler: this.parseExpr() };
+    }
     return this.parseBin(0);
   }
 
@@ -430,28 +699,46 @@ class Parser {
       return e.t === 'num' && typeof e.v === 'bigint' ? num(-e.v) : this.natSub(num(0n), e);
     }
     const t = this.peek();
-    if (t && t.k === 'kw' && ['fun', 'match', 'if', 'let', 'do', 'return'].includes(t.v)) return this.parseExpr();
+    if (t && t.k === 'kw' && ['fun', 'match', 'if', 'let', 'do', 'return', 'try'].includes(t.v)) return this.parseExpr();
     return this.parseApp();
   }
 
   startsAtom() {
     const t = this.peek();
     if (!t) return false;
-    if (['num', 'str', 'id'].includes(t.k)) return true;
+    if (['num', 'str', 'id', 'arrayopen'].includes(t.k)) return true;
     if (t.k === 'kw') return ['true', 'false'].includes(t.v);
-    return t.k === 'op' && (t.v === '(' || t.v === '[');
+    return t.k === 'op' && (t.v === '(' || t.v === '[' || t.v === '{');
   }
 
   parseApp() {
     let f = this.parseAtom();
+    let nArgs = 0;
     for (;;) {
       if (!this.startsAtom()) break;
       const a = this.peek();
       // do-action 內的並置: 跨行需更深縮排，否則是下一個動作 (do 外不限)
       if (this.appBaseCol !== null && a.line > this.lastLine && !(a.col > this.appBaseCol)) break;
-      f = { t: 'app', f, a: this.parseAtom() };
+      f = { t: 'app', f, a: this.parseAtom() }; nArgs++;
     }
+    if (nArgs === 0) return f;
+    let h = f; const args = [];
+    while (h.t === 'app') { args.unshift(h.a); h = h.f; }
+    if (h.t === 'var' && this.methodOf.has(h.name)) return this.buildMethodCall(h.name, args);
     return f;
+  }
+
+  buildMethodCall(name, args) {                               // 方法呼叫: 首參數決定分派
+    const { cls, idx } = this.methodOf.get(name);
+    const t = tmp('m');
+    let dict = { t: 'app', f: { t: 'app', f: { t: 'app', f: vr('__tcFind'), a: vr('__tcTable') },
+      a: { t: 'sym', name: cls } },
+      a: { t: 'app', f: vr('__tcTag'), a: vr(t) } };
+    for (let i = 0; i < idx; i++) dict = { t: 'app', f: vr('cdr'), a: dict };
+    dict = { t: 'app', f: vr('car'), a: dict };
+    let call = { t: 'app', f: dict, a: vr(t) };
+    for (const a of args.slice(1)) call = { t: 'app', f: call, a };
+    return { t: 'let', pat: { p: 'var', name: t }, val: args[0], body: call };
   }
 
   parseAtom() {
@@ -460,8 +747,13 @@ class Parser {
     if (t.k === 'num') return num(t.v);
     if (t.k === 'str') return { t: 'str', v: t.v };
     if (t.k === 'id') {
-      const nm = strip(t.v);
-      if (this.knownCtor(nm)) return vr(C(nm));
+      const raw = t.v;
+      if (PRIM_ALIAS.has(raw)) return vr(PRIM_ALIAS.get(raw));
+      if (this.defs.has(raw)) return vr(raw);              // 使用者定義 (全名，含 UInt32.add)
+      if (this.projections.has(raw)) return vr(raw);       // Point.x 全名投影優先
+      if (raw.includes('.')) return vr(this.resolveCtor(raw));
+      const nm = strip(raw);
+      if (this.indCtors.has(C(nm))) return vr(C(nm));
       if (/^[A-Z]/.test(nm)) this.err(`未知建構子 "${nm}" (inductive 宣告了嗎?)`);
       if (RESERVED_VAR.has(nm)) this.err(`"${t.v}" 不可為變數`);
       return vr(nm);
@@ -489,8 +781,72 @@ class Parser {
         this.expectOp(']');
         return items.reduceRight((acc, x) => ({ t: 'binop', op: '::', l: x, r: acc }), { t: 'nil' });
       }
+      if (t.v === '{') return this.parseStructLit();
+    }
+    if (t.k === 'arrayopen') {
+      const args = [];
+      if (!this.isOp(']')) {
+        args.push(this.parseExpr());
+        while (this.isOp(',')) { this.next(); if (this.isOp(']')) break; args.push(this.parseExpr()); }
+      }
+      this.expectOp(']');
+      return { t: 'call', f: vr('array'), args };
     }
     this.p--; this.err('無法解析的運算式');
+  }
+
+  parseStructLit() {                                          // { x := .., .. } 或 { p with x := .. }
+    const t0 = this.peek();
+    if (!t0 || t0.k !== 'id') this.err('{...} 需要欄位或 p with');
+    const first = strip(this.next().v);
+    if (this.isKw('with')) {                                  // { p with f := e, ... }
+      this.next();
+      if (first.includes('.')) this.err('{...} with 的基底須為變數');
+      const base = vr(first);
+      const given = this.parseStructFields();
+      this.expectOp('}');
+      const st = this.structForFields(given.map(g => g[0]), 'with');
+      return this.buildStruct(st, given, base);
+    }
+    this.expectOp(':=');
+    const given = [[first, this.parseExpr()]];
+    while (this.isOp(',')) { this.next(); if (this.isOp('}')) break; given.push(this.parseStructField()); }
+    this.expectOp('}');
+    const st = this.structForFields(given.map(g => g[0]), 'instance');
+    return this.buildStruct(st, given, null);
+  }
+  parseStructField() {
+    const t = this.peek();
+    if (!t || t.k !== 'id') this.err('{...} 欄位需要名稱');
+    const fn = strip(this.next().v);
+    this.expectOp(':=');
+    return [fn, this.parseExpr()];
+  }
+  parseStructFields() {
+    const out = [this.parseStructField()];
+    while (this.isOp(',')) { this.next(); if (this.isOp('}')) break; out.push(this.parseStructField()); }
+    return out;
+  }
+  structForFields(names, what) {
+    const cands = [...this.structs.entries()].filter(([sn, fs]) => names.every(n => fs.includes(n)));
+    if (!cands.length) {
+      const known = [...this.structs.keys()];
+      this.err(`{...} ${what}: 找不到含欄位 [${names.join(', ')}] 的 structure` +
+        (known.length ? ` (已宣告: ${known.join(', ')})` : ' (尚未宣告任何 structure；請先宣告)'));
+    }
+    if (cands.length > 1) this.err(`{...} ${what}: 欄位 [${names.join(', ')}] 模稜兩可 (${cands.map(c => c[0]).join(', ')})`);
+    return cands[0];
+  }
+  buildStruct([sn, fs], given, base) {                        // 依宣告順序排成 ctor 應用
+    const giv = new Map(given);
+    const args = fs.map(f => {
+      if (giv.has(f)) return giv.get(f);
+      if (!base) this.err(`{...}: 缺少欄位 "${f}" (structure ${sn})`);
+      return { t: 'app', f: vr(sn + '.' + f), a: base };       // 舊欄读投影
+    });
+    let node = vr(C(sn + '.mk'));
+    for (const a of args) node = { t: 'app', f: node, a };
+    return node;
   }
 
   /* ── pattern (mlc 形狀) ── */
@@ -503,21 +859,40 @@ class Parser {
   parsePatApp() {
     const t = this.peek();
     if (t && t.k === 'id') {
-      const nm = strip(t.v);
-      this.next();
-      if (/^[A-Z]/.test(nm) || this.knownCtor(nm)) {
-        if (!this.knownCtor(nm)) this.err(`未知建構子 "${nm}"`);
-        const args = [];
-        while (this.startsPatAtom()) args.push(this.parsePatAtom());
-        return { p: 'ctor', name: C(nm), args };
+      const raw = t.v;
+      if (raw.includes('.')) {                             // 點名只可能是建構子
+        this.next();
+        return { p: 'ctor', name: this.resolveCtor(raw), args: this.patArgs() };
       }
-      if (nm === '_') return { p: 'wild' };
+      const nm = strip(raw);
+      if (nm === '_') { this.next(); return { p: 'wild' }; }
+      if (this.indCtors.has(C(nm))) {
+        this.next();
+        return { p: 'ctor', name: C(nm), args: this.patArgs() };
+      }
+      if (/^[A-Z]/.test(nm)) this.err(`未知建構子 "${nm}"`);
+      this.next();
+      if (this.startsPatAtom()) this.err(`未知建構子 "${raw}" (小寫建構子需先宣告)`);
       if (RESERVED_VAR.has(nm)) this.err(`"${nm}" 不可為 pattern`);
       return { p: 'var', name: nm };
     }
     return this.parsePatAtom();
   }
-  knownCtor(nm) { return this.ctorSet && this.ctorSet.has(C(nm)); }
+  patArgs() { const args = []; while (this.startsPatAtom()) args.push(this.parsePatAtom()); return args; }
+  // 建構子解析: 'NatList.cons'/'.cons'/'cons' -> 'ctor/cons'；'Point.mk' -> 'ctor/Point.mk'
+  // structure 一律寫全名；短名只認 inductive (未知則報錯並提示)
+  resolveCtor(raw) {
+    const segs = raw.split('.').filter(x => x.length);
+    const short = segs[segs.length - 1], full = segs.join('.');
+    if (segs.length > 1) {
+      if (this.structCtors.has(C(full))) return C(full);
+      if (this.indCtors.has(C(short))) return C(short);
+      this.err(`未知建構子 "${raw}" (p.x 點記法不支援；structure 請寫完整 Point.mk)`);
+    }
+    const key = C(short);
+    if (this.indCtors.has(key)) return key;
+    this.err(`未知建構子 "${raw}" (structure 請寫完整 Point.mk)`);
+  }
   startsPatAtom() {
     const t = this.peek();
     if (!t) return false;
@@ -531,9 +906,12 @@ class Parser {
     if (t.k === 'num') return typeof t.v === 'bigint' ? { p: 'const', v: t.v } : { p: 'const', v: t.v };
     if (t.k === 'str') return { p: 'str', v: t.v };
     if (t.k === 'id') {
-      const nm = strip(t.v);
+      const raw = t.v;
+      if (raw.includes('.')) return { p: 'ctor', name: this.resolveCtor(raw), args: [] };
+      const nm = strip(raw);
       if (nm === '_') return { p: 'wild' };
-      if (/^[A-Z]/.test(nm) || this.knownCtor(nm)) return { p: 'ctor', name: C(nm), args: [] };
+      if (this.indCtors.has(C(nm))) return { p: 'ctor', name: C(nm), args: [] };
+      if (/^[A-Z]/.test(nm)) this.err(`未知建構子 "${raw}"`);
       if (RESERVED_VAR.has(nm)) this.err(`"${nm}" 不可為 pattern`);
       return { p: 'var', name: nm };
     }
@@ -567,27 +945,124 @@ class Parser {
   }
 }
 
-function prescanCtors(toks) {                                // 先掃 inductive 建構子名 (pattern 判別用)
-  const set = new Set(); let inInd = false;
+function prescanCtors(toks) {                                // 先掃建構子名 (判別用)
+  const ind = new Set(), struct = new Set();
   const at = i => { while (i < toks.length && toks[i].k === 'nl') i++; return toks[i]; };
+  let mode = null;
   for (let i = 0; i < toks.length; i++) {
     const t = toks[i];
-    if (t.k === 'kw' && (TOPKW.has(t.v) || PROOFKW.has(t.v))) inInd = (t.v === 'inductive');
-    else if (t.k === 'directive') inInd = false;
-    else if (inInd && t.k === 'op' && t.v === '|') {
-      let j = i + 1;
-      while (toks[j] && toks[j].k === 'nl') j++;
-      if (toks[j] && toks[j].k === 'id') set.add(C(strip(toks[j].v)));
+    if (t.k === 'kw' && (TOPKW.has(t.v) || PROOFKW.has(t.v))) {
+      mode = null;
+      if (t.v === 'structure') {
+        const u = at(i + 1);
+        if (u && u.k === 'id') struct.add(C(u.v + '.mk'));      // 全名，不 strip
+      } else if (t.v === 'inductive') mode = 'ind';
+    }
+    else if (t.k === 'directive') mode = null;
+    else if (mode === 'ind' && t.k === 'op' && t.v === '|') {
+      const u = at(i + 1);
+      if (u && u.k === 'id') ind.add(C(strip(u.v)));
     }
   }
-  return { set, at };
+  return { ind, struct, at };
 }
 
 function toScheme(src) {
   gid = 0;
+  const preParser = new Parser(tokenize(LEAN_PRELUDE), { ind: new Set(), struct: new Set() }, { allowDunder: true });
+  const pre = preParser.parseProgram().filter(it => it.t === 'def');
+  const reserved = new Set(pre.map(d => d.name));
   const toks = tokenize(src);
-  const parser = new Parser(toks, prescanCtors(toks).set);
-  return new mlc.Desugar().program(parser.parseProgram());
+  const parser = new Parser(toks, prescanCtors(toks), { reservedDefs: reserved });
+  for (const n of reserved) parser.defs.add(n);      // prelude 名 (含 UInt32.add) 可解析
+  const items = parser.parseProgram();
+  return new mlc.Desugar().program(assembleProgram(items, pre));
+}
+
+/* 內建 prelude (Lean 寫成，同一 parser 解析；__ 前綴保留給它) */
+const UINT_WIDTHS = [8, 16, 32, 64];
+const UINT_OPS = ['add', 'sub', 'mul', 'div', 'mod', 'shl', 'shr', 'and', 'or', 'xor', 'not', 'toNat', 'fromNat'];
+const UINT_UNARY = new Set(['not', 'toNat', 'fromNat']);
+const cap = s => s[0].toUpperCase() + s.slice(1);
+const uintPrelude = UINT_WIDTHS.map(w =>
+  UINT_OPS.map(op => UINT_UNARY.has(op)
+    ? `def UInt${w}.${op} (a : Nat) : Nat := u${cap(op)} ${w} a`
+    : `def UInt${w}.${op} (a : Nat) (b : Nat) : Nat := u${cap(op)} ${w} a b`).join('\n')
+).join('\n');
+const LEAN_PRELUDE = `
+def __tcTag (x : Nat) : Nat :=
+  if null? x then error "cannot dispatch on ()"
+  else if pair? x then
+    if symbol? (car x) then car x
+    else error "not a dispatchable value"
+  else if symbol? x then x
+  else error "cannot dispatch (primitive instances later)"
+
+def __tcFind (table : Nat) (cls : Nat) (tag : Nat) : Nat :=
+  if null? table then error "no instance"
+  else if car (car table) == cls then
+    if car (cdr (car table)) == tag then car (cdr (cdr (car table)))
+    else __tcFind (cdr table) cls tag
+  else __tcFind (cdr table) cls tag
+
+def __reprPair (l : Nat) : Nat :=
+  String.append (__reprAny (car l))
+    (if null? (cdr l) then ")"
+    else if pair? (cdr l) then String.append " " (__reprPair (cdr l))
+    else String.append " . " (String.append (__reprAny (cdr l)) ")"))
+
+def __reprAny (x : Nat) : Nat :=
+  if null? x then "[]"
+  else if number? x then Nat.toString x
+  else if string? x then String.append "\\"" (String.append x "\\"")
+  else if symbol? x then Symbol.toString x
+  else if pair? x then String.append "(" (__reprPair x)
+  else if procedure? x then "<procedure>"
+  else if x then "true" else "false"
+
+def pow2 (w : Nat) : Nat :=
+  if w == 0 then 1 else 2 * pow2 (w - 1)
+
+def Nat.pow (b : Nat) (e : Nat) : Nat :=
+  if e == 0 then 1 else b * Nat.pow b (e - 1)
+
+def uMask (w : Nat) : Nat := pow2 w - 1
+def uNorm (w : Nat) (a : Nat) : Nat := a % pow2 w
+def uAdd (w : Nat) (a : Nat) (b : Nat) : Nat := (uNorm w a + uNorm w b) % pow2 w
+def uSub (w : Nat) (a : Nat) (b : Nat) : Nat := (uNorm w a + pow2 w - uNorm w b) % pow2 w
+def uMul (w : Nat) (a : Nat) (b : Nat) : Nat := (uNorm w a * uNorm w b) % pow2 w
+def uDiv (w : Nat) (a : Nat) (b : Nat) : Nat :=
+  if b == 0 then error "uDiv: division by zero" else quotient (uNorm w a) (uNorm w b)
+def uMod (w : Nat) (a : Nat) (b : Nat) : Nat :=
+  if b == 0 then error "uMod: division by zero" else modulo (uNorm w a) (uNorm w b)
+def uShl (w : Nat) (a : Nat) (n : Nat) : Nat := uNorm w (uNorm w a * pow2 n)
+def uShr (w : Nat) (a : Nat) (n : Nat) : Nat := quotient (uNorm w a) (pow2 n)
+def uAnd (w : Nat) (a : Nat) (b : Nat) : Nat := uNorm w (Bit.and a b)
+def uOr (w : Nat) (a : Nat) (b : Nat) : Nat := uNorm w (Bit.or a b)
+def uXor (w : Nat) (a : Nat) (b : Nat) : Nat := uNorm w (Bit.xor a b)
+def uNot (w : Nat) (a : Nat) : Nat := uMask w - uNorm w a
+def uToNat (w : Nat) (a : Nat) : Nat := uNorm w a
+def uFromNat (w : Nat) (a : Nat) : Nat := uNorm w a
+
+${uintPrelude}
+`;
+
+function assembleProgram(items, pre) {
+  const instances = items.filter(it => it.t === 'instance');
+  const rest = items.filter(it => it.t !== 'instance');
+  // rest 前兩項固定是 println/print (parseProgram 注入)；tc 輔助放其後
+  const out = [...rest.slice(0, 2), ...pre];
+  // 表永遠 emit (空表亦然；落空由 __tc-find 報 "no instance"，而非 unbound)
+  const rows = [];
+  for (let i = instances.length - 1; i >= 0; i--) {
+    const inst = instances[i];
+    const dict = { t: 'call', f: vr('list'), args: inst.methods.map(m => inst.impls.get(m)) };
+    for (const tg of inst.tags)
+      rows.push({ t: 'call', f: vr('list'), args: [{ t: 'sym', name: inst.cls }, { t: 'sym', name: tg }, dict] });
+  }
+  out.push({ t: 'def', name: '__tcTable', rec: false, val: { t: 'call', f: vr('list'), args: rows } });
+  out.push(...rest.slice(2));
+  return out;
 }
 function compile(src) { return lispc.compile(toScheme(src)); }
 module.exports = { compile, toScheme, tokenize };
@@ -595,10 +1070,10 @@ module.exports = { compile, toScheme, tokenize };
 /* ─────────── CLI ─────────── */
 if (require.main === module) {
   const args = process.argv.slice(2);
-  if (!args.length) { console.error('用法: node leanc.js prog.lean [-o prog.lbc] [--scheme]'); process.exit(1); }
+  if (!args.length) { console.error('用法: node leanc.js prog.lean [-o prog.fbc] [--scheme]'); process.exit(1); }
   const input = args.find((a, i) => !a.startsWith('-') && args[i - 1] !== '-o');
   const oi = args.indexOf('-o');
-  const output = oi >= 0 ? args[oi + 1] : input.replace(/\.[^.]*$/, '') + '.lbc';
+  const output = oi >= 0 ? args[oi + 1] : input.replace(/\.[^.]*$/, '') + '.fbc';
   try {
     const src = fs.readFileSync(input, 'utf8');
     if (args.includes('--scheme')) process.stdout.write(toScheme(src));

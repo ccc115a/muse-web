@@ -1,5 +1,5 @@
 -- 01_basics.ml : let / option / match / 基礎運算
--- 執行: node mlc.js ml/01_basics.ml && node lispvm.js ml/01_basics.lbc
+-- 執行: node mlc.js ml/01_basics.ml && node fpvm.js ml/01_basics.fbc
 
 datatype option = None | Some of 'a;
 

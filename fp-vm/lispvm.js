@@ -2,6 +2,7 @@
 'use strict';
 /*
  * lispvm.js  —  執行 lispc.js 產生的中間碼 (.lbc)
+ * （凍結保留；現行 VM 為 fpvm.js）
  * 用法:  node lispvm.js program.lbc
  * 指令集與格式請見 lispc.js 檔頭註解。
  */

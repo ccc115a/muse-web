@@ -1,5 +1,5 @@
 -- 02_adt.ml : list / tree 遞迴 + pattern match
--- 執行: node mlc.js ml/02_adt.ml && node lispvm.js ml/02_adt.lbc
+-- 執行: node mlc.js ml/02_adt.ml && node fpvm.js ml/02_adt.fbc
 
 datatype tree = Leaf | Node of tree * int * tree;
 

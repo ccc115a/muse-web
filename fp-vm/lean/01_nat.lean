@@ -1,5 +1,5 @@
 -- 01_nat.lean : Nat 遞迴、多方程式、#eval
--- 執行: node leanc.js lean/01_nat.lean && node lispvm.js lean/01_nat.lbc
+-- 執行: node leanc.js lean/01_nat.lean && node fpvm.js lean/01_nat.fbc
 
 def fact : Nat → Nat
   | 0 => 1

@@ -3,9 +3,9 @@
 /*
  * mlc.js  —  迷你 ML  ->  LBC v1 中間碼 (經 Scheme 核心，用 lispc.js 編譯)
  *
- * 用法:  node mlc.js prog.ml [-o prog.lbc]      (-o - 輸出到 stdout)
+ * 用法:  node mlc.js prog.ml [-o prog.fbc]      (-o - 輸出到 stdout)
  *        node mlc.js prog.ml --scheme            只印 Scheme 核心，方便除錯
- *        node lispvm.js prog.lbc
+ *        node fpvm.js prog.fbc
  *
  * 流程:  *.ml --(parser)--> AST --(desugar)--> Scheme --(lispc.js)--> LBC
  * 詳見 _doc/plan1.1.md。型別全部擦除，不做型別檢查。
@@ -406,6 +406,10 @@ const PRIM_ARITY = new Map(Object.entries({
   'abs': 1, 'not': 1, 'car': 1, 'cdr': 1, 'length': 1, 'reverse': 1,
   'null?': 1, 'pair?': 1, 'number?': 1, 'string?': 1, 'symbol?': 1,
   'zero?': 1, 'even?': 1, 'odd?': 1, 'display': 1, 'write': 1, 'newline': 1, 'error': 1,
+  'string-append': 2,
+  'array-get': 2, 'array-set': 3, 'array-push': 2, 'array-size': 1, 'array?': 1,
+  'string-ref': 2, 'substring': 3,
+  'bit-and': 2, 'bit-or': 2, 'bit-xor': 2,
 }));
 const VARIADIC = new Set(['list']);
 
@@ -484,6 +488,9 @@ class Desugar {
       case 'lam': return this.exLam(n.param, n.body);
       case 'if': return ['if', this.ex(n.c), this.ex(n.a), this.ex(n.b)];
       case 'begin': return ['begin', ...n.items.map(x => this.ex(x))];
+      case 'call': return [this.ex(n.f), ...n.args.map(a => this.ex(a))];   // 直接多參呼叫 (給 prim 用；不可 curry)
+      case 'sym': return ['quote', n.name];                          // 符號字面量 (給 class/tag 用)
+      case 'try': return ['try', this.ex(n.body), ['catch', n.var, this.ex(n.handler)]];
       case 'let': return this.exLet(n);
       case 'letrec': return this.exLetRec(n);
       case 'match': return this.exMatch(this.ex(n.scrut), n.clauses);
@@ -613,10 +620,10 @@ module.exports = { compile, toScheme, Desugar };
 /* ─────────── CLI ─────────── */
 if (require.main === module) {
   const args = process.argv.slice(2);
-  if (!args.length) { console.error('用法: node mlc.js prog.ml [-o prog.lbc] [--scheme]'); process.exit(1); }
+  if (!args.length) { console.error('用法: node mlc.js prog.ml [-o prog.fbc] [--scheme]'); process.exit(1); }
   const input = args.find((a, i) => !a.startsWith('-') && args[i - 1] !== '-o');
   const oi = args.indexOf('-o');
-  const output = oi >= 0 ? args[oi + 1] : input.replace(/\.[^.]*$/, '') + '.lbc';
+  const output = oi >= 0 ? args[oi + 1] : input.replace(/\.[^.]*$/, '') + '.fbc';
   try {
     const src = fs.readFileSync(input, 'utf8');
     if (args.includes('--scheme')) process.stdout.write(toScheme(src));

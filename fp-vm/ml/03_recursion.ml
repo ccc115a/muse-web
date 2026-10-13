@@ -1,5 +1,5 @@
 -- 03_recursion.ml : 尾遞迴 + 相互遞迴
--- 執行: node mlc.js ml/03_recursion.ml && node lispvm.js ml/03_recursion.lbc
+-- 執行: node mlc.js ml/03_recursion.ml && node fpvm.js ml/03_recursion.fbc
 
 letrec loop i acc = if i = 0 then acc else loop (i - 1) (acc + i);
 display (loop 1000000 0); newline ();

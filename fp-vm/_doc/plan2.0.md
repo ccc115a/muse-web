@@ -1,6 +1,6 @@
 # plan2.0 — 微型 Lean 前端（`leanc.js`，新語言的基礎）
 
-目標：Lean 風格表面語法 → `.lbc`，驗證 inductive + Nat + do-notation 這條路。
+目標：Lean 風格表面語法 → `.fbc`，驗證 inductive + Nat + do-notation 這條路。
 刻意不做 elaborator：無 dependent unification、無 tactic、無完整 typeclass 推論，
 型別全部擦除（Prop/證明項不存在於 runtime）。
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 'use strict';
 /*
- * lambdac.js  —  Lambda Calculus  ->  LBC v1 中間碼 (與 lispc.js 相同格式，用 lispvm.js 執行)
+ * lambdac.js  —  Lambda Calculus  ->  LBC v1 中間碼 (與 lispc.js 相同格式，用 fpvm.js 執行)
  *
- * 用法:  node lambdac.js input.lc [-o output.lbc]      (-o - 輸出到 stdout)
- *        node lispvm.js output.lbc
+ * 用法:  node lambdac.js input.lc [-o output.fbc]      (-o - 輸出到 stdout)
+ *        node fpvm.js output.fbc
  *
  * ───────────────────────────── 語法 ─────────────────────────────
  *  程式    := 項目 ( ";" 項目 )* [";"]            -- 註解以 -- 開頭
@@ -402,10 +402,10 @@ module.exports = { compile };
 /* ───────────── CLI ───────────── */
 if (require.main === module) {
   const args = process.argv.slice(2);
-  if (args.length === 0) { console.error('用法: node lambdac.js input.lc [-o output.lbc]'); process.exit(1); }
+  if (args.length === 0) { console.error('用法: node lambdac.js input.lc [-o output.fbc]'); process.exit(1); }
   const input = args[0];
   const oi = args.indexOf('-o');
-  const output = oi >= 0 ? args[oi + 1] : input.replace(/\.[^.]*$/, '') + '.lbc';
+  const output = oi >= 0 ? args[oi + 1] : input.replace(/\.[^.]*$/, '') + '.fbc';
   try {
     const bc = compile(fs.readFileSync(input, 'utf8'));
     if (output === '-') process.stdout.write(bc);

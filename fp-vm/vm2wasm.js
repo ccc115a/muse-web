@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 'use strict';
 /*
- * vm2wasm.js  —  LBC v1 中間碼 (.lbc)  ->  WebAssembly (.wasm)
+ * vm2wasm.js  —  LBC v1 中間碼 (.fbc)  ->  WebAssembly (.wasm)
  *
  * 用法:
- *   node vm2wasm.js prog.lbc [-o prog.wasm]     編譯成 wasm (預設輸出 prog.wasm)
- *   node vm2wasm.js prog.lbc --run              編譯並執行
+  *   node vm2wasm.js prog.fbc [-o prog.wasm] [--run] [-- 程式參數...]
+  *   node vm2wasm.js prog.wasm [-- 程式參數...]    直接執行 wasm
  *   node vm2wasm.js prog.wasm                   直接執行 wasm
  *
  * 需要支援 WebAssembly tail-call 的 Node.js (v20+)。不依賴任何 npm 套件，
@@ -31,7 +31,7 @@
  *
  * 【環境】 區域環境 = [parent][bindings]，binding = [name_id][value][next]；
  *    env = 0 代表全域環境 (直接用 GLOBALS 表)。變數名稱在編譯期轉為 name_id，
- *    LOAD/DEF/SET 在執行期沿著環境鏈查找，語意與 lispvm.js 完全相同。
+  *    LOAD/DEF/SET 在執行期沿著環境鏈查找，語意與 fpvm.js 完全相同。
  *
  * 【函式】 每個 .func 編譯成一個 wasm 函式 (env:i32, argc:i32) -> i32，放在 funcref table。
  *    - 堆疊機的運算元堆疊在編譯期靜態對應到 wasm local (s0, s1, ...)；
@@ -45,8 +45,20 @@
 const fs = require('fs');
 const { Worker, isMainThread, workerData, parentPort } = require('worker_threads');
 
+class ExitSignal { constructor(code) { this.code = code; } }   // exit prim 用 (直通 primWrap)
+let stdinLinesWasm = null;
+const readStdinLines = () => {
+  if (stdinLinesWasm) return stdinLinesWasm;
+  if (process.stdin.isTTY) return (stdinLinesWasm = []);
+  let data = '';
+  try { data = fs.readFileSync(0, 'utf8'); } catch { data = ''; }
+  const ls = data.split(/\r?\n/);
+  if (ls.length && ls[ls.length - 1] === '') ls.pop();
+  return (stdinLinesWasm = ls);
+};
+
 /* ───────────── 常數 ───────────── */
-const TAG = { FLOAT: 1, STR: 2, SYM: 3, PAIR: 4, CLOSURE: 5, PRIM: 6, NIL: 7, VOID: 8, TRUE: 9, FALSE: 10, BIG: 11 };
+const TAG = { FLOAT: 1, STR: 2, SYM: 3, PAIR: 4, CLOSURE: 5, PRIM: 6, NIL: 7, VOID: 8, TRUE: 9, FALSE: 10, BIG: 11, ARR: 12 };
 const NIL = 8, VOID = 16, TRUE = 24, FALSE = 32;
 const ARGBUF = 64, ARGMAX = 256, GBASE = ARGBUF + 4 * ARGMAX;
 const HS_N = 64;                             // 例外處理器堆疊深度 (每項 {env, pc} 8 bytes)
@@ -58,7 +70,12 @@ const PRIM_NAMES = ['+', '*', '-', '/', 'quotient', 'remainder', 'modulo', '=', 
   'cons', 'car', 'cdr', 'cadr', 'cddr', 'caddr', 'list', 'length', 'append', 'reverse',
   'null?', 'pair?', 'number?', 'string?', 'symbol?', 'procedure?',
   'string-append', 'string-length', 'number->string', 'display', 'write', 'newline', 'error',
-  'vector', 'hash-map'];
+  'vector', 'hash-map',
+  'array', 'array-push', 'array-get', 'array-set', 'array-size', 'array?', 'array-empty',
+  'symbol->string',
+  'string-ref', 'substring', 'char->nat', 'nat->char',
+  'bit-and', 'bit-or', 'bit-xor',
+  'read-line', 'get-args', 'exit'];
 
 /* ───────────── wasm 二進位組譯小工具 ───────────── */
 const uleb = n => { n = BigInt(n); const o = []; do { let b = Number(n & 0x7fn); n >>= 7n; if (n) b |= 0x80; o.push(b); } while (n); return o; };
@@ -587,7 +604,7 @@ function compile(lbcText) {
 
 /* ═══════════════════════ 執行端 (宿主 JS) ═══════════════════════
  * 只負責: 內建函式、錯誤訊息、輸出。所有資料都直接讀寫 wasm 線性記憶體。 */
-function runBytes(bytes) {
+function runBytes(bytes, progArgs = []) {
   const mod = new WebAssembly.Module(bytes);
   const sec = WebAssembly.Module.customSections(mod, 'lbc.meta');
   if (!sec.length) throw new Error('不是由 vm2wasm.js 產生的 wasm (缺少 lbc.meta)');
@@ -609,12 +626,18 @@ function runBytes(bytes) {
   const isBigV = v => !(v & 1) && rd(v) === TAG.BIG;
   const isNumV = v => (v & 1) || rd(v) === TAG.FLOAT || rd(v) === TAG.BIG;
   const numVal = v => (v & 1) ? v >> 1 : V().getFloat64(v + 8, true);
-  const toBig = (v, who) => {                           // 與 lispvm toBig 同語意 (錯誤訊息一致)
+  const toBig = (v, who) => {                           // 與 fpvm toBig 同語意 (錯誤訊息一致)
     if (v & 1) return BigInt(v >> 1);
     const t = rd(v);
     if (t === TAG.BIG) return BigInt(strOf(v));
     if (t === TAG.FLOAT) { const x = numVal(v); if (Number.isInteger(x)) return BigInt(x); }
     throw new Error(`${who}: 需要整數，得到 ${toStr(v, true)}`);
+  };
+  const toIdxV = (v, who) => {                            // 與 fpvm toIdx 同語意
+    if (v & 1) return v >> 1;
+    if (rd(v) === TAG.BIG) { const b = BigInt(strOf(v)); return (b >= 0n && b <= 9007199254740991n) ? Number(b) : -1; }
+    if (rd(v) === TAG.FLOAT && Number.isInteger(numVal(v))) return numVal(v);
+    throw new Error(`${who}: 需要 Nat 索引，得到 ${toStr(v, true)}`);
   };
   const mkNum = x => {
     if (Number.isInteger(x) && x >= -1073741824 && x <= 1073741823) return (x << 1) | 1;
@@ -625,6 +648,10 @@ function runBytes(bytes) {
   const mkStr = s => { const b = enc.encode(s), p = ex.alloc(8 + b.length); wr(p, TAG.STR); wr(p + 4, b.length); V(); u8.set(b, p + 8); return p; };
   const mkPair = (a, d) => { const p = ex.alloc(12); wr(p, TAG.PAIR); wr(p + 4, a); wr(p + 8, d); return p; };
   const isPair = v => !(v & 1) && rd(v) === TAG.PAIR;
+  const isArr = v => !(v & 1) && rd(v) === TAG.ARR;
+  const arrLen = v => rd(v + 4);
+  const arrAt = (v, i) => rd(v + 8 + 4 * i);
+  const mkArr = items => { const p = ex.alloc(8 + 4 * items.length); wr(p, TAG.ARR); wr(p + 4, items.length); V(); items.forEach((x, i) => wr(p + 8 + 4 * i, x)); return p; };
   const car = v => rd(v + 4), cdr = v => rd(v + 8);
   const bool = b => b ? TRUE : FALSE;
   const arrOf = l => { const a = []; for (; isPair(l); l = cdr(l)) a.push(car(l)); return a; };
@@ -648,6 +675,10 @@ function runBytes(bytes) {
         for (; isPair(p); p = cdr(p)) parts.push(toStr(car(p), write));
         return '(' + parts.join(' ') + (p === NIL ? '' : ' . ' + toStr(p, write)) + ')';
       }
+      case TAG.ARR: {
+        const parts = []; for (let i = 0; i < arrLen(v); i++) parts.push(toStr(arrAt(v, i), write));
+        return '#[' + parts.join(', ') + ']';
+      }
     }
     return '#<unknown>';
   }
@@ -660,7 +691,15 @@ function runBytes(bytes) {
     if (isNumV(a) && isNumV(b)) return numEqV(a, b);
     return tagOf(a) === TAG.STR && tagOf(b) === TAG.STR && strOf(a) === strOf(b);
   };
-  const equal = (a, b) => isPair(a) && isPair(b) ? equal(car(a), car(b)) && equal(cdr(a), cdr(b)) : eqv(a, b);
+  const equal = (a, b) => {
+    if (isPair(a) && isPair(b)) return equal(car(a), car(b)) && equal(cdr(a), cdr(b));
+    if (isArr(a) && isArr(b)) {
+      if (arrLen(a) !== arrLen(b)) return false;
+      for (let i = 0; i < arrLen(a); i++) if (!equal(arrAt(a, i), arrAt(b, i))) return false;
+      return true;
+    }
+    return eqv(a, b);
+  };
 
   /* 內建函式: 引數在 ARGBUF，A(i) 取第 i 個 */
   const A = i => rd(ARGBUF + 4 * i);
@@ -673,7 +712,11 @@ function runBytes(bytes) {
   const req = (who, n, k) => { if (n < k) throw new Error(`${who}: 參數個數錯誤 (需要 ${k}，得到 ${n})`); };
   const nums = (who, n) => { const r = []; for (let i = 0; i < n; i++) r.push(num(A(i), who)); return r; };
   const cmp = (who, f) => n => {
-    const vs = argsOf(n), B = vs.some(isBigV), v = B ? vs.map(x => toBig(x, who)) : vs.map(x => num(x, who));
+    const vs = argsOf(n);
+    if (vs.every(v => !(v & 1) && rd(v) === TAG.STR)) {
+      for (let i = 0; i < vs.length - 1; i++) if (!f(strOf(vs[i]), strOf(vs[i + 1]))) return FALSE; return TRUE;
+    }
+    const B = vs.some(isBigV), v = B ? vs.map(x => toBig(x, who)) : vs.map(x => num(x, who));
     for (let i = 0; i < v.length - 1; i++) if (!f(v[i], v[i + 1])) return FALSE; return TRUE;
   };
   const pairOrErr = (who, v) => { if (!isPair(v)) throw new Error(`${who}: 不是 pair: ${toStr(v, true)}`); return v; };
@@ -739,6 +782,41 @@ function runBytes(bytes) {
       for (let i = ks.length - 1; i >= 0; i--) es = mkPair(mkPair(ks[i], mkPair(vs[i], NIL)), es);
       return mkPair(tagSym('map'), es);
     },
+    'array': n => mkArr(argsOf(n)),
+    'array-empty': n => {
+      if (n !== 0) throw new Error(`array-empty: 參數個數錯誤 (需要 0，得到 ${n})`);
+      return mkArr([]);
+    },
+    'array-push': n => {
+      if (n !== 2) throw new Error(`array-push: 參數個數錯誤 (需要 2，得到 ${n})`);
+      if (!isArr(A(0))) throw new Error('array-push: 需要 array，得到 ' + toStr(A(0), true));
+      const items = []; for (let i = 0; i < arrLen(A(0)); i++) items.push(arrAt(A(0), i));
+      items.push(A(1)); return mkArr(items);
+    },
+    'array-get': n => {
+      if (n !== 2) throw new Error(`array-get: 參數個數錯誤 (需要 2，得到 ${n})`);
+      if (!isArr(A(0))) throw new Error('array-get: 需要 array，得到 ' + toStr(A(0), true));
+      const k = toIdxV(A(1), 'array-get');
+      if (k < 0 || k >= arrLen(A(0))) throw new Error(`array-get: 索引超出範圍 (長度 ${arrLen(A(0))}，得到 ${toStr(A(1), true)})`);
+      return arrAt(A(0), k);
+    },
+    'array-set': n => {
+      if (n !== 3) throw new Error(`array-set: 參數個數錯誤 (需要 3，得到 ${n})`);
+      if (!isArr(A(0))) throw new Error('array-set: 需要 array，得到 ' + toStr(A(0), true));
+      const k = toIdxV(A(1), 'array-set');
+      if (k < 0 || k >= arrLen(A(0))) throw new Error(`array-set: 索引超出範圍 (長度 ${arrLen(A(0))}，得到 ${toStr(A(1), true)})`);
+      const items = []; for (let i = 0; i < arrLen(A(0)); i++) items.push(arrAt(A(0), i));
+      items[k] = A(2); return mkArr(items);
+    },
+    'array-size': n => {
+      if (n !== 1) throw new Error(`array-size: 參數個數錯誤 (需要 1，得到 ${n})`);
+      if (!isArr(A(0))) throw new Error('array-size: 需要 array，得到 ' + toStr(A(0), true));
+      return mkNum(arrLen(A(0)));
+    },
+    'array?': n => {
+      if (n !== 1) throw new Error(`array?: 參數個數錯誤 (需要 1，得到 ${n})`);
+      return bool(isArr(A(0)));
+    },
     'length': n => { req('length', n, 1); return mkNum(arrOf(A(0)).length); },
     'append': n => { const all = []; for (let i = 0; i < n; i++) all.push(...arrOf(A(i))); return listOf(all); },
     'reverse': n => { req('reverse', n, 1); return listOf(arrOf(A(0)).reverse()); },
@@ -749,12 +827,65 @@ function runBytes(bytes) {
     'symbol?': n => { req('symbol?', n, 1); return bool(tagOf(A(0)) === TAG.SYM); },
     'procedure?': n => { req('procedure?', n, 1); const t = tagOf(A(0)); return bool(t === TAG.CLOSURE || t === TAG.PRIM); },
     'string-append': n => { let s = ''; for (let i = 0; i < n; i++) s += toStr(A(i), false); return mkStr(s); },
-    'string-length': n => { req('string-length', n, 1); return mkNum(strOf(A(0)).length); },
+    'string-length': n => {
+      req('string-length', n, 1);
+      if (tagOf(A(0)) !== TAG.STR) throw new Error('string-length: 需要字串，得到 ' + toStr(A(0), true));
+      return mkNum([...strOf(A(0))].length);
+    },
+    'string-ref': n => {
+      if (n !== 2) throw new Error(`string-ref: 參數個數錯誤 (需要 2，得到 ${n})`);
+      if (tagOf(A(0)) !== TAG.STR) throw new Error('string-ref: 需要字串，得到 ' + toStr(A(0), true));
+      const cs = [...strOf(A(0))], k = toIdxV(A(1), 'string-ref');
+      if (k < 0 || k >= cs.length) throw new Error(`string-ref: 索引超出範圍 (長度 ${cs.length}，得到 ${toStr(A(1), true)})`);
+      return mkBig(BigInt(cs[k].codePointAt(0)));
+    },
+    'substring': n => {
+      if (n !== 3) throw new Error(`substring: 參數個數錯誤 (需要 3，得到 ${n})`);
+      if (tagOf(A(0)) !== TAG.STR) throw new Error('substring: 需要字串，得到 ' + toStr(A(0), true));
+      const cs = [...strOf(A(0))], x = toIdxV(A(1), 'substring'), y = toIdxV(A(2), 'substring');
+      if (x < 0 || y < 0 || x > y || y > cs.length) throw new Error(`substring: 範圍錯誤 (長度 ${cs.length}，得到 ${toStr(A(1), true)} ${toStr(A(2), true)})`);
+      return mkStr(cs.slice(x, y).join(''));
+    },
+    'char->nat': n => {
+      if (n !== 1) throw new Error(`char->nat: 參數個數錯誤 (需要 1，得到 ${n})`);
+      const v = A(0);
+      if (isBigV(v) || (v & 1) || (tagOf(v) === TAG.FLOAT && Number.isInteger(numVal(v)))) return v;
+      throw new Error('char->nat: 需要 Char，得到 ' + toStr(v, true));
+    },
+    'nat->char': n => {
+      if (n !== 1) throw new Error(`nat->char: 參數個數錯誤 (需要 1，得到 ${n})`);
+      const v = toBig(A(0), 'nat->char');
+      if (v < 0n || v > 0x10FFFFn || (v >= 0xD800n && v <= 0xDFFFn)) throw new Error('nat->char: 不是有效碼位，得到 ' + toStr(A(0), true));
+      return mkBig(v);
+    },
+    'bit-and': n => {
+      if (n !== 2) throw new Error(`bit-and: 參數個數錯誤 (需要 2，得到 ${n})`);
+      return mkBig(toBig(A(0), 'bit-and') & toBig(A(1), 'bit-and'));
+    },
+    'bit-or': n => {
+      if (n !== 2) throw new Error(`bit-or: 參數個數錯誤 (需要 2，得到 ${n})`);
+      return mkBig(toBig(A(0), 'bit-or') | toBig(A(1), 'bit-or'));
+    },
+    'bit-xor': n => {
+      if (n !== 2) throw new Error(`bit-xor: 參數個數錯誤 (需要 2，得到 ${n})`);
+      return mkBig(toBig(A(0), 'bit-xor') ^ toBig(A(1), 'bit-xor'));
+    },
+    'symbol->string': n => {
+      if (n !== 1) throw new Error(`symbol->string: 參數個數錯誤 (需要 1，得到 ${n})`);
+      if (tagOf(A(0)) !== TAG.SYM) throw new Error('symbol->string: 需要 symbol，得到 ' + toStr(A(0), true));
+      return mkStr(strOf(rd(A(0) + 4)));
+    },
     'number->string': n => { req('number->string', n, 1); return mkStr(isBigV(A(0)) ? strOf(A(0)) : String(num(A(0), 'number->string'))); },
     'display': n => { req('display', n, 1); out(toStr(A(0), false)); return VOID; },
     'write': n => { req('write', n, 1); out(toStr(A(0), true)); return VOID; },
     'newline': () => { out('\n'); return VOID; },
     'error': n => { const a = []; for (let i = 0; i < n; i++) a.push(toStr(A(i), false)); throwLisp(mkStr(a.join(' '))); },
+    'read-line': () => { const ls = readStdinLines(); return ls.length ? mkStr(ls.shift()) : NIL; },
+    'get-args': () => listOf(progArgs.map(s => mkStr(s))),
+    'exit': n => {
+      const code = n === 0 ? 0 : Number(toBig(A(0), 'exit'));
+      throw new ExitSignal(code);
+    },
   };
   const prims = PRIM_NAMES.map(pn => impl[pn]);
 
@@ -786,6 +917,7 @@ function runBytes(bytes) {
     try { return prims[id](argc); }
     catch (e) {
       if (e instanceof WebAssembly.Exception) throw e;
+      if (e instanceof ExitSignal) throw e;             // exit 直通，不轉 Lisp 例外
       throwLisp(mkStr(String((e && e.message) || e)));
     }
   };
@@ -802,9 +934,13 @@ function runBytes(bytes) {
 }
 
 /* 在 worker 內執行，以便給予很大的呼叫堆疊 (非尾遞迴的深度 = wasm 原生堆疊深度) */
-function runInWorker(bytes) {
-  const w = new Worker(__filename, { workerData: { vm2wasmRun: true, bytes }, resourceLimits: { stackSizeMb: 256 } });
-  w.on('message', m => { if (m && m.error) { console.error('執行錯誤: ' + m.error); process.exitCode = 1; } });
+function runInWorker(bytes, progArgs = []) {
+  const w = new Worker(__filename, { workerData: { vm2wasmRun: true, bytes, progArgs }, resourceLimits: { stackSizeMb: 256 } });
+  w.on('message', m => {
+    if (!m) return;
+    if (m.error !== undefined) { console.error('執行錯誤: ' + m.error); process.exitCode = 1; }
+    else if (m.exit !== undefined) { process.exitCode = m.exit; }
+  });
   w.on('error', e => { console.error('執行錯誤: ' + (e && e.message)); process.exitCode = 1; });
 }
 
@@ -812,28 +948,32 @@ module.exports = { compile, run: runBytes };
 
 /* ───────────── 進入點 ───────────── */
 if (!isMainThread && workerData && workerData.vm2wasmRun) {
-  try { runBytes(workerData.bytes); parentPort.postMessage({ ok: true }); }
-  catch (e) { parentPort.postMessage({ error: e.message }); }
+  try { runBytes(workerData.bytes, workerData.progArgs || []); parentPort.postMessage({ ok: true }); }
+  catch (e) {
+    if (e instanceof ExitSignal) parentPort.postMessage({ exit: e.code });
+    else parentPort.postMessage({ error: e.message });
+  }
 } else if (require.main === module) {
   const args = process.argv.slice(2);
-  let input = null, output = null, run = false;
+  let input = null, output = null, run = false, progArgs = [];
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '-o') output = args[++i];
+    if (args[i] === '--') { progArgs = args.slice(i + 1); break; }
+    else if (args[i] === '-o') output = args[++i];
     else if (args[i] === '--run') run = true;
     else input = args[i];
   }
   if (!input) {
-    console.error('用法: node vm2wasm.js prog.lbc [-o prog.wasm] [--run]\n      node vm2wasm.js prog.wasm');
+    console.error('用法: node vm2wasm.js prog.fbc [-o prog.wasm] [--run] [-- 程式參數...]\n      node vm2wasm.js prog.wasm [-- 程式參數...]');
     process.exit(1);
   }
   try {
-    if (input.endsWith('.wasm')) runInWorker(fs.readFileSync(input));
+    if (input.endsWith('.wasm')) runInWorker(fs.readFileSync(input), progArgs);
     else {
       const bytes = compile(fs.readFileSync(input, 'utf8'));
       output = output || input.replace(/\.[^.]*$/, '') + '.wasm';
       fs.writeFileSync(output, bytes);
       console.error(`已編譯 ${input} -> ${output} (${bytes.length} bytes)`);
-      if (run) runInWorker(bytes);
+      if (run) runInWorker(bytes, progArgs);
     }
   } catch (e) { console.error('錯誤: ' + e.message); process.exit(1); }
 }

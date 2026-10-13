@@ -3,7 +3,7 @@
 /*
  * cljc.js  —  迷你 Clojure  ->  LBC v1 中間碼
  *
- * 用法:  node cljc.js prog.clj [-o prog.lbc]      產生 prog.lbc，用 lispvm.js / vm2wasm.js 執行
+ * 用法:  node cljc.js prog.clj [-o prog.fbc]      產生 prog.fbc，用 fpvm.js / vm2wasm.js 執行
  *        node cljc.js prog.clj --scheme            只印出中間產物 (Scheme 核心)，方便除錯
  *
  * 編譯流程:  Clojure --(reader)--> 資料 --(desugar)--> Scheme 核心 --(lispc.js)--> LBC
@@ -993,10 +993,10 @@ module.exports = { compile, toScheme };
 /* ═════════════════════════ CLI ═════════════════════════ */
 if (require.main === module) {
   const args = process.argv.slice(2);
-  if (!args.length) { console.error('用法: node cljc.js prog.clj [-o prog.lbc] [--scheme]'); process.exit(1); }
+  if (!args.length) { console.error('用法: node cljc.js prog.clj [-o prog.fbc] [--scheme]'); process.exit(1); }
   const input = args.find((a, i) => !a.startsWith('-') && args[i - 1] !== '-o');
   const oi = args.indexOf('-o');
-  const output = oi >= 0 ? args[oi + 1] : input.replace(/\.[^.]*$/, '') + '.lbc';
+  const output = oi >= 0 ? args[oi + 1] : input.replace(/\.[^.]*$/, '') + '.fbc';
   try {
     const src = fs.readFileSync(input, 'utf8');
     if (args.includes('--scheme')) process.stdout.write(toScheme(src));

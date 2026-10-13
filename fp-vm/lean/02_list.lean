@@ -1,5 +1,5 @@
 -- 02_list.lean : inductive + match + 多參數方程式
--- 執行: node leanc.js lean/02_list.lean && node lispvm.js lean/02_list.lbc
+-- 執行: node leanc.js lean/02_list.lean && node fpvm.js lean/02_list.fbc
 
 inductive NatList
   | nil
