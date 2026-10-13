@@ -25,10 +25,12 @@ const mlc = require('./mlc.js');
 
 /* ─────────── Lexer ─────────── */
 const KEYWORDS = new Set(['inductive', 'structure', 'def', 'abbrev', 'match', 'with', 'if', 'then', 'else',
-  'let', 'fun', 'do', 'return', 'try', 'catch', 'deriving', 'where', 'by',
-  'import', 'open', 'namespace', 'section', 'end', 'variable', 'universe',
+  'let', 'have', 'fun', 'do', 'return', 'try', 'catch', 'deriving', 'where', 'by',
+  'import', 'open', 'namespace', 'section', 'end', 'variable', 'universe', 'mutual', 'set_option',
+  'private', 'protected', 'unsafe', 'partial', 'noncomputable',
   'instance', 'class', 'theorem', 'lemma', 'example',
   'true', 'false']);
+const MODIFIERS = new Set(['private', 'protected', 'unsafe', 'partial', 'noncomputable']);
 const TOPKW = new Set(['inductive', 'structure', 'class', 'instance', 'def', 'abbrev', 'import', 'open', 'namespace', 'section',
   'end', 'variable', 'universe']);
 const PROOFKW = new Set(['theorem', 'lemma', 'example']);
@@ -67,8 +69,26 @@ function tokenize(src) {
     }
     const rest = src.slice(i);
     let m;
+    if ((m = /^0[xX][0-9a-fA-F]+/.exec(rest))) { push('num', BigInt('0x' + m[0].slice(2))); i += m[0].length; continue; }
+    if ((m = /^0[oO][0-7]+/.exec(rest))) { push('num', BigInt('0o' + m[0].slice(2))); i += m[0].length; continue; }
+    if ((m = /^0[bB][01]+/.exec(rest))) { push('num', BigInt('0b' + m[0].slice(2))); i += m[0].length; continue; }
     if ((m = /^\d+\.\d+/.exec(rest))) { push('num', Number(m[0])); i += m[0].length; continue; }
     if ((m = /^\d+/.exec(rest))) { push('num', BigInt(m[0])); i += m[0].length; continue; }
+    if (c === '@') {                                             // @[attr] 跳過；@f 即 f
+      if (src[i + 1] === '[') {
+        let d = 0; i++;
+        while (i < src.length) {
+          if (src[i] === '[') d++;
+          else if (src[i] === ']') { d--; if (d === 0) { i++; break; } }
+          else if (src[i] === '\n') { line++; }
+          else if (src[i] === '"') { i++; while (i < src.length && src[i] !== '"') { if (src[i] === '\\') i++; if (src[i] === '\n') line++; i++; } }
+          i++;
+        }
+        if (d > 0) throw new Error(`第 ${line} 行: @[...] 未閉合`);
+        continue;
+      }
+      i++; continue;                                             // @f 的 @ 直接丟掉
+    }
     if (c === "'") {                                             // 'a' '\n' '\u{1F600}'
       i++;
       let cp;
@@ -209,7 +229,7 @@ class Parser {
   }
 
   parseItem() {
-    const t = this.peek();
+    let t = this.peek();
     if (t.k === 'directive') {
       if (t.v !== '#eval') this.err(`不支援 ${t.v} (只有 #eval)`);
       this.next();
@@ -218,6 +238,35 @@ class Parser {
               { t: 'expr', e: { t: 'app', f: vr('newline'), a: { t: 'nil' } } }];
     }
     if (t.k === 'kw') {
+      while (this.peek() && this.peek().k === 'kw' && MODIFIERS.has(this.peek().v)) this.next();  // 修飾詞跳過
+      t = this.peek();
+      if (t.v === 'set_option') {                        // set_option k v [in cmd]
+        let depth = 0;
+        for (;;) {
+          const u = this.next(false);
+          if (!u || u.k === 'nl') break;
+          if (u.v === 'in' && depth === 0) break;
+          if (u.k === 'op' && (u.v === '(' || u.v === '[')) depth++;
+          if (u.k === 'op' && (u.v === ')' || u.v === ']')) depth--;
+        }
+        return this.parseItem();
+      }
+      if (t.v === 'mutual') {                            // mutual ... end (本來就全域互遞迴)
+        this.next();
+        const out = [];
+        for (;;) {
+          while (this.raw() && this.raw().k === 'nl') this.p++;
+          const u = this.raw();
+          if (!u) this.err('mutual 缺少 end');
+          if (u.k === 'kw' && u.v === 'end') {
+            this.p++;
+            if (this.peek() && this.peek().k === 'id') this.next();   // end Name?
+            break;
+          }
+          out.push(...this.parseItem());
+        }
+        return out;
+      }
       if (t.v === 'inductive') return this.parseInductive();
       if (t.v === 'structure') return this.parseStructure();
       if (t.v === 'class') { this.parseClass(); return []; }
@@ -592,13 +641,24 @@ class Parser {
       this.next();
       return { t: 'if', c, a, b: this.parseExpr() };
     }
-    if (t.k === 'kw' && t.v === 'let') {
+    if (t.k === 'kw' && (t.v === 'let' || t.v === 'have')) {
+      const isHave = t.v === 'have';
       this.next();
-      const nm = this.checkVar(strip(this.expectId()));
+      let nm = null;
+      if (this.peek() && this.peek().k === 'id') {       // have 可匿名；let 必須具名
+        const save = this.p;
+        const cand = strip(this.next().v);
+        if (this.isOp(':=') || this.isOp(':')) nm = this.checkVar(cand);
+        else this.p = save;
+      }
+      if (nm === null && !isHave) this.err('let 需要變數名');
+      if (this.isOp(':')) { this.next(); this.skipTypeTo(':='); }
       this.expectOp(':=');
       const v = this.parseExpr();
       this.expectOp(';');
-      return { t: 'let', pat: { p: 'var', name: nm }, val: v, body: this.parseExpr() };
+      const body = this.parseExpr();
+      return nm ? { t: 'let', pat: { p: 'var', name: nm }, val: v, body }
+                : { t: 'begin', items: [v, body] };
     }
     if (t.k === 'kw' && t.v === 'do') return this.parseDo();
     if (t.k === 'kw' && t.v === 'return') { this.next(); return this.parseExpr(); }
@@ -737,7 +797,7 @@ class Parser {
       return e.t === 'num' && typeof e.v === 'bigint' ? num(-e.v) : this.natSub(num(0n), e);
     }
     const t = this.peek();
-    if (t && t.k === 'kw' && ['fun', 'match', 'if', 'let', 'do', 'return', 'try'].includes(t.v)) return this.parseExpr();
+    if (t && t.k === 'kw' && ['fun', 'match', 'if', 'let', 'have', 'do', 'return', 'try'].includes(t.v)) return this.parseExpr();
     return this.parseApp();
   }
 
@@ -810,12 +870,15 @@ class Parser {
     if (t.k === 'str') return { t: 'str', v: t.v };
     if (t.k === 'id') {
       const raw = t.v;
+      if (raw === 'sorry' || raw === 'sorryAx')          // 未證即跑到才炸，可 catch
+        return { t: 'call', f: vr('error'), args: [{ t: 'str', v: 'sorry' }] };
       if (PRIM_ALIAS.has(raw)) return vr(PRIM_ALIAS.get(raw));
       if (this.defs.has(raw)) return vr(raw);              // 使用者定義 (全名，含 UInt32.add)
       if (this.projections.has(raw)) return vr(raw);       // Point.x 全名投影優先
       if (raw.includes('.')) return vr(this.resolveCtor(raw));
       const nm = strip(raw);
       if (this.indCtors.has(C(nm))) return vr(C(nm));
+      this.bakedUndeclared(nm);
       if (/^[A-Z]/.test(nm)) this.err(`未知建構子 "${nm}" (inductive 宣告了嗎?)`);
       if (RESERVED_VAR.has(nm)) this.err(`"${t.v}" 不可為變數`);
       return vr(nm);
@@ -827,10 +890,10 @@ class Parser {
     if (t.k === 'op') {
       if (t.v === '(') {
         if (this.isOp(')')) { this.next(); return { t: 'nil' }; }
-        const e = this.parseExpr();
+        const e = this.parseNamedOrExpr();
         if (this.isOp(',')) {
           const items = [e];
-          while (this.isOp(',')) { this.next(); items.push(this.parseExpr()); }
+          while (this.isOp(',')) { this.next(); items.push(this.parseNamedOrExpr()); }
           this.expectOp(')');
           return { t: 'tuple', items };
         }
@@ -855,6 +918,19 @@ class Parser {
       return { t: 'call', f: vr('array'), args };
     }
     this.p--; this.err('無法解析的運算式');
+  }
+
+  parseNamedOrExpr() {                                       // (x := e) 具名參數：只取値
+    const t = this.peek();
+    if (t && t.k === 'id') {
+      let q = this.p + 1;
+      while (this.t[q] && this.t[q].k === 'nl') q++;
+      if (this.t[q] && this.t[q].k === 'op' && this.t[q].v === ':=') {
+        this.p = q + 1;
+        return this.parseExpr();
+      }
+    }
+    return this.parseExpr();
   }
 
   parseStructLit() {                                          // { x := .., .. } 或 { p with x := .. }
@@ -932,6 +1008,7 @@ class Parser {
         this.next();
         return { p: 'ctor', name: C(nm), args: this.patArgs() };
       }
+      this.bakedUndeclared(nm);
       if (/^[A-Z]/.test(nm)) this.err(`未知建構子 "${nm}"`);
       this.next();
       if (this.startsPatAtom()) this.err(`未知建構子 "${raw}" (小寫建構子需先宣告)`);
@@ -943,6 +1020,12 @@ class Parser {
   patArgs() { const args = []; while (this.startsPatAtom()) args.push(this.parsePatAtom()); return args; }
   // 建構子解析: 'NatList.cons'/'.cons'/'cons' -> 'ctor/cons'；'Point.mk' -> 'ctor/Point.mk'
   // structure 一律寫全名；短名只認 inductive (未知則報錯並提示)
+  bakedUndeclared(nm) {
+    if (BAKED_CTORS.includes(C(nm)))
+      this.err(nm === 'nil'
+        ? `建構子 "nil" 未宣告（是否少了 inductive？空串列請用 []）`
+        : `建構子 "${nm}" 未宣告（是否少了 inductive？）`);
+  }
   resolveCtor(raw) {
     const segs = raw.split('.').filter(x => x.length);
     const short = segs[segs.length - 1], full = segs.join('.');
@@ -973,6 +1056,7 @@ class Parser {
       const nm = strip(raw);
       if (nm === '_') return { p: 'wild' };
       if (this.indCtors.has(C(nm))) return { p: 'ctor', name: C(nm), args: [] };
+      this.bakedUndeclared(nm);
       if (/^[A-Z]/.test(nm)) this.err(`未知建構子 "${raw}"`);
       if (RESERVED_VAR.has(nm)) this.err(`"${nm}" 不可為 pattern`);
       return { p: 'var', name: nm };
@@ -1037,7 +1121,6 @@ function toScheme(src) {
   const reserved = new Set(pre.map(d => d.name));
   const toks = tokenize(src);
   const presc = prescanCtors(toks);
-  for (const t of BAKED_CTORS) presc.ind.add(t);      // stdlib 引用解析 (型別用戶宣告)
   const parser = new Parser(toks, presc, { reservedDefs: reserved });
   for (const n of reserved) parser.defs.add(n);      // prelude 名 (含 UInt32.add) 可解析
   const items = parser.parseProgram();
